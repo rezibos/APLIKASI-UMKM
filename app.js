@@ -58,8 +58,7 @@ const NAV_GROUPS = [
   {
     title: 'Utama',
     items: [
-      { id: 'dashboard', label: 'Dashboard', subtitle: 'Ringkasan operasional hari ini' },
-      { id: 'belanja', label: 'Belanja', subtitle: 'Halaman user untuk pesan produk' }
+      { id: 'dashboard', label: 'Dashboard', subtitle: 'Ringkasan operasional hari ini' }
     ]
   },
   {
@@ -73,7 +72,6 @@ const NAV_GROUPS = [
   {
     title: 'Aktivitas',
     items: [
-      { id: 'pesanan', label: 'Pesanan Masuk', subtitle: 'Antrian pesanan dari user' },
       { id: 'transaksi', label: 'Transaksi', subtitle: 'Riwayat seluruh transaksi' },
       { id: 'laporan', label: 'Laporan', subtitle: 'Analisis penjualan dan ringkasan' }
     ]
@@ -562,307 +560,6 @@ async function checkout(payment) {
   switchView('dashboard');
 }
 
-async function submitOrder(customerName, notes) {
-  if (!state.cart.length) {
-    notify.warning('Keranjang masih kosong.');
-    return;
-  }
-
-  const name = String(customerName || '').trim();
-  const orderNotes = String(notes || '').trim();
-
-  if (!name) {
-    notify.warning('Nama pemesan wajib diisi.');
-    return;
-  }
-
-  const total = state.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const code = uidCode('ORD');
-  const nowIso = new Date().toISOString();
-
-  const trxInsert = await db
-    .from('transactions')
-    .insert({ code, total, payment: 0, change: 0, status: 'pending', customer_name: name, notes: orderNotes, created_at: nowIso })
-    .select('id')
-    .single();
-
-  if (trxInsert.error) {
-    notify.error(`Gagal menyimpan pesanan: ${trxInsert.error.message}`);
-    return;
-  }
-
-  const trxItems = state.cart.map((item) => ({
-    transaction_id: trxInsert.data.id,
-    product_id: item.productId,
-    name: item.name,
-    price: item.price,
-    qty: item.qty,
-    subtotal: item.price * item.qty
-  }));
-
-  const itemRes = await db.from('transaction_items').insert(trxItems);
-  if (itemRes.error) {
-    notify.error(`Gagal menyimpan item pesanan: ${itemRes.error.message}`);
-    return;
-  }
-
-  state.cart = [];
-  await refreshDataAndView();
-  notify.success(`Pesanan ${code} berhasil dibuat dan menunggu proses admin.`, 'Pesanan Terkirim');
-  switchView('belanja');
-}
-
-async function processPendingOrder(trxId) {
-  const trx = state.transactions.find((t) => t.id === String(trxId));
-  if (!trx) return;
-
-  if (String(trx.status || 'completed').toLowerCase() !== 'pending') {
-    notify.info('Pesanan ini sudah diproses.');
-    return;
-  }
-
-  const confirmed = await notify.confirm(`Proses pesanan ${trx.code} sekarang?`);
-  if (!confirmed) return;
-
-  for (const item of trx.items) {
-    const product = state.products.find((p) => p.id === item.productId);
-    if (!product || Number(product.stock) < item.qty) {
-      notify.error(`Stock ${item.name} tidak cukup untuk diproses.`);
-      return;
-    }
-  }
-
-  for (const item of trx.items) {
-    const product = state.products.find((p) => p.id === item.productId);
-    const nextStock = Number(product.stock) - item.qty;
-
-    const updateStockRes = await db
-      .from('products')
-      .update({ stock: nextStock })
-      .eq('id', item.productId);
-
-    if (updateStockRes.error) {
-      notify.error(`Gagal update stock ${item.name}: ${updateStockRes.error.message}`);
-      return;
-    }
-  }
-
-  const nowIso = new Date().toISOString();
-  const res = await db
-    .from('transactions')
-    .update({ status: 'completed', payment: trx.total, change: 0, processed_at: nowIso })
-    .eq('id', trx.id);
-
-  if (res.error) {
-    notify.error(`Gagal memproses pesanan: ${res.error.message}`);
-    return;
-  }
-
-  notify.success(`Pesanan ${trx.code} berhasil diproses.`);
-  await refreshDataAndView();
-}
-
-async function rejectPendingOrder(trxId) {
-  const trx = state.transactions.find((t) => t.id === String(trxId));
-  if (!trx) return;
-
-  const confirmed = await notify.confirm(`Batalkan pesanan ${trx.code}?`);
-  if (!confirmed) return;
-
-  const nowIso = new Date().toISOString();
-  const res = await db
-    .from('transactions')
-    .update({ status: 'cancelled', processed_at: nowIso })
-    .eq('id', trx.id);
-
-  if (res.error) {
-    notify.error(`Gagal membatalkan pesanan: ${res.error.message}`);
-    return;
-  }
-
-  notify.success(`Pesanan ${trx.code} dibatalkan.`);
-  await refreshDataAndView();
-}
-
-function renderBelanja() {
-  const root = document.getElementById('view-belanja');
-  const cartTotal = state.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-
-  root.innerHTML = `
-    <div class="grid lg:grid-cols-3 gap-5">
-      <div class="lg:col-span-2 space-y-4">
-        <div class="card p-4">
-          <div class="flex flex-wrap items-center gap-3 justify-between mb-4">
-            <h3 class="font-bold text-lg text-primary-700">Belanja Produk</h3>
-            <div class="flex flex-wrap gap-2">
-              <input id="belanjaSearch" class="input w-56" placeholder="Cari produk..." />
-              <button class="btn btn-soft" id="backToDashboardBtn">Lihat Dashboard</button>
-            </div>
-          </div>
-          <div id="belanjaMenu" class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3"></div>
-        </div>
-      </div>
-
-      <div class="space-y-4">
-        <div class="card p-4">
-          <h3 class="font-bold text-lg text-primary-700 mb-3">Keranjang User</h3>
-          <div id="belanjaCartWrap" class="space-y-2 max-h-[360px] overflow-auto"></div>
-
-          <div class="mt-4 border-t border-amber-100 pt-3 space-y-2">
-            <p class="flex justify-between font-semibold"><span>Total</span><span>${formatter.format(cartTotal)}</span></p>
-
-            <div>
-              <label class="text-xs text-slate-500">Nama Pemesan</label>
-              <input id="customerNameInput" class="input" type="text" placeholder="Isi nama Anda" />
-            </div>
-
-            <div>
-              <label class="text-xs text-slate-500">Catatan</label>
-              <textarea id="orderNotesInput" class="textarea" rows="3" placeholder="Contoh: tanpa gula, ambil jam 2"></textarea>
-            </div>
-
-            <button id="submitOrderBtn" class="btn btn-primary w-full">Buat Pesanan</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  const menuBox = root.querySelector('#belanjaMenu');
-  const searchInput = root.querySelector('#belanjaSearch');
-  const cartWrap = root.querySelector('#belanjaCartWrap');
-  const customerNameInput = root.querySelector('#customerNameInput');
-  const orderNotesInput = root.querySelector('#orderNotesInput');
-
-  function renderMenuCards(keyword = '') {
-    const filtered = state.products
-      .filter((p) => p.name.toLowerCase().includes(keyword.toLowerCase()))
-      .sort((a, b) => a.name.localeCompare(b.name, 'id'));
-
-    menuBox.innerHTML = filtered.length
-      ? filtered.map((p) => `
-        <article class="border border-amber-100 rounded-xl p-3 bg-white">
-          <img src="${p.image || 'https://placehold.co/400x260?text=No+Image'}" alt="${p.name}" class="w-full h-28 object-cover rounded-lg mb-3" />
-          <p class="font-semibold text-slate-800 text-sm">${p.name}</p>
-          <p class="text-xs text-slate-500 mb-1">${categoryName(p.categoryId)}</p>
-          <p class="font-bold text-primary-700 mb-2">${formatter.format(p.price)}</p>
-          <p class="text-xs text-slate-500 mb-2">Stock: ${p.stock}</p>
-          <button class="btn btn-primary w-full text-sm" data-add-cart="${p.id}" ${p.stock <= 0 ? 'disabled' : ''}>Masuk Keranjang</button>
-        </article>
-      `).join('')
-      : '<p class="text-slate-500">Produk tidak ditemukan.</p>';
-
-    menuBox.querySelectorAll('[data-add-cart]').forEach((btn) => {
-      btn.addEventListener('click', () => addToCart(btn.dataset.addCart));
-    });
-  }
-
-  function renderCart() {
-    cartWrap.innerHTML = state.cart.length
-      ? state.cart.map((item) => {
-        const product = state.products.find((p) => p.id === item.productId);
-        return `
-        <div class="p-2 rounded-lg bg-amber-50 border border-amber-100 flex gap-2">
-          <img src="${product?.image || 'https://placehold.co/60x40?text=No+Image'}" alt="${item.name}" class="w-12 h-10 rounded object-cover flex-shrink-0" />
-          <div class="flex-1 min-w-0">
-            <p class="font-semibold text-sm truncate">${item.name}</p>
-            <p class="text-xs text-slate-500">${formatter.format(item.price)} x ${item.qty}</p>
-          </div>
-          <div class="flex items-center gap-1 flex-shrink-0">
-            <button class="btn btn-soft text-xs py-1 px-2" data-cart-minus="${item.productId}">-</button>
-            <button class="btn btn-soft text-xs py-1 px-2" data-cart-plus="${item.productId}">+</button>
-            <button class="btn btn-danger text-xs py-1 px-2" data-cart-remove="${item.productId}">✕</button>
-          </div>
-        </div>
-      `;
-      }).join('')
-      : '<p class="text-slate-500 text-sm">Keranjang masih kosong.</p>';
-
-    cartWrap.querySelectorAll('[data-cart-minus]').forEach((btn) => {
-      btn.addEventListener('click', () => changeCartQty(btn.dataset.cartMinus, -1));
-    });
-
-    cartWrap.querySelectorAll('[data-cart-plus]').forEach((btn) => {
-      btn.addEventListener('click', () => changeCartQty(btn.dataset.cartPlus, 1));
-    });
-
-    cartWrap.querySelectorAll('[data-cart-remove]').forEach((btn) => {
-      btn.addEventListener('click', () => removeCartItem(btn.dataset.cartRemove));
-    });
-  }
-
-  searchInput.addEventListener('input', () => renderMenuCards(searchInput.value));
-  root.querySelector('#backToDashboardBtn').addEventListener('click', () => switchView('dashboard'));
-  root.querySelector('#submitOrderBtn').addEventListener('click', async () => {
-    await submitOrder(customerNameInput.value, orderNotesInput.value);
-  });
-
-  renderMenuCards();
-  renderCart();
-}
-
-function renderPesanan() {
-  const root = document.getElementById('view-pesanan');
-  const pendingOrders = state.transactions.filter((trx) => String(trx.status || 'completed').toLowerCase() === 'pending');
-
-  root.innerHTML = `
-    <div class="card p-5">
-      <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
-        <h3 class="font-bold text-lg text-primary-700">Pesanan Masuk</h3>
-        <p class="text-sm text-slate-500">Pesanan dari user yang belum diproses admin.</p>
-      </div>
-      <div class="table-wrap">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>Kode</th>
-              <th>Pemesan</th>
-              <th>Waktu</th>
-              <th>Total Item</th>
-              <th>Total</th>
-              <th>Status</th>
-              <th>Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${pendingOrders.length ? pendingOrders.map((trx) => `
-              <tr>
-                <td>${trx.code}</td>
-                <td>${trx.customerName || '-'}</td>
-                <td>${formatDateTime(trx.createdAt)}</td>
-                <td>${trx.items.reduce((sum, i) => sum + i.qty, 0)}</td>
-                <td>${formatter.format(trx.total)}</td>
-                <td>${transactionStatusBadge(trx.status)}</td>
-                <td class="space-x-1">
-                  <button class="btn btn-soft" data-detail-order="${trx.id}">Detail</button>
-                  <button class="btn btn-primary" data-process-order="${trx.id}">Proses</button>
-                  <button class="btn btn-danger" data-reject-order="${trx.id}">Tolak</button>
-                </td>
-              </tr>
-            `).join('') : '<tr><td colspan="7" style="text-align:center;padding:2.5rem 0;color:#94a3b8;font-size:0.9rem;">Belum ada pesanan masuk.</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-
-  root.querySelectorAll('[data-detail-order]').forEach((btn) => {
-    btn.addEventListener('click', () => openTrxDetail(btn.dataset.detailOrder));
-  });
-
-  root.querySelectorAll('[data-process-order]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      await processPendingOrder(btn.dataset.processOrder);
-    });
-  });
-
-  root.querySelectorAll('[data-reject-order]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      await rejectPendingOrder(btn.dataset.rejectOrder);
-    });
-  });
-}
-
 function renderKasir() {
   const root = document.getElementById('view-kasir');
   const cartTotal = state.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
@@ -908,7 +605,6 @@ function renderKasir() {
   const menuBox = root.querySelector('#kasirMenu');
   const searchInput = root.querySelector('#cashierSearch');
   const cartWrap = root.querySelector('#cartWrap');
-  const manualDiv = root.querySelector('#manualPaymentDiv');
   const paymentInput = root.querySelector('#paymentInput');
 
   function renderMenuCards(keyword = '') {
@@ -1389,7 +1085,6 @@ function renderTransaksi() {
                 <td>${formatter.format(trx.change)}</td>
                 <td class="space-x-1">
                   <button class="btn btn-soft" data-detail-trx="${trx.id}">Detail</button>
-                  ${String(trx.status || 'completed').toLowerCase() === 'pending' ? `<button class="btn btn-primary" data-process-trx="${trx.id}">Proses</button>` : ''}
                   <button class="btn btn-primary" data-print-trx="${trx.id}">Cetak</button>
                 </td>
               </tr>
@@ -1406,12 +1101,6 @@ function renderTransaksi() {
 
   root.querySelectorAll('[data-print-trx]').forEach((btn) => {
     btn.addEventListener('click', () => printReceipt(btn.dataset.printTrx));
-  });
-
-  root.querySelectorAll('[data-process-trx]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      await processPendingOrder(btn.dataset.processTrx);
-    });
   });
 }
 
@@ -1644,7 +1333,6 @@ function renderLaporan() {
   <div class="stat"><div class="stat-label">Total Item Terjual</div><div class="stat-value">${currentData.itemSold}</div></div>
   <div class="stat"><div class="stat-label">Total Omzet</div><div class="stat-value">${formatter.format(currentData.omzet)}</div></div>
 </div>
-  await checkout(payment);
 <h2>Top Produk</h2>
 <table><thead><tr><th>#</th><th>Nama Produk</th><th>Terjual</th></tr></thead><tbody>
 ${currentData.top.length ? currentData.top.map((row,i)=>`<tr><td>${i+1}</td><td>${row[0]}</td><td>${row[1]} pcs</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:center;color:#94a3b8">Belum ada data</td></tr>'}</tbody></table>
@@ -1724,11 +1412,9 @@ function printReceipt(trxId) {
 }
 function renderCurrentView() {
   if (state.currentView === 'dashboard') renderDashboard();
-  if (state.currentView === 'belanja') renderBelanja();
   if (state.currentView === 'kasir') renderKasir();
   if (state.currentView === 'produk') renderProduk();
   if (state.currentView === 'kategori') renderKategori();
-  if (state.currentView === 'pesanan') renderPesanan();
   if (state.currentView === 'transaksi') renderTransaksi();
   if (state.currentView === 'laporan') renderLaporan();
 }
