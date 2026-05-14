@@ -585,12 +585,15 @@ function renderKasir() {
           <div id="cartWrap" class="space-y-2 max-h-[360px] overflow-auto"></div>
 
           <div class="mt-4 border-t border-amber-100 pt-3 space-y-2">
-            <p class="flex justify-between font-semibold"><span>Total</span><span>${formatter.format(cartTotal)}</span></p>
+            <p class="flex justify-between font-semibold"><span>Total</span><span id="cartTotalDisplay">${formatter.format(cartTotal)}</span></p>
 
             <div id="manualPaymentDiv">
-              <label class="text-xs text-slate-500">Bayar (Rp)</label>
-              <input id="paymentInput" class="input" type="number" min="0" placeholder="Masukkan uang bayar" />
+              <label class="text-xs text-slate-500">Uang Bayar (Rp)</label>
+              <input id="paymentInput" class="input" type="number" min="1" placeholder="Masukkan uang bayar" />
+              <p id="err-payment" class="hidden mt-1 text-xs text-red-500 font-medium"></p>
             </div>
+
+            <div id="changeDisplay" class="hidden rounded-xl px-3 py-2 text-sm font-semibold flex justify-between items-center"></div>
 
             <div class="grid grid-cols-2 gap-2">
               <button id="checkoutBtn" class="btn btn-primary">Bayar Tunai</button>
@@ -667,8 +670,62 @@ function renderKasir() {
   searchInput.addEventListener('input', () => renderMenuCards(searchInput.value));
   root.querySelector('#goProduk').addEventListener('click', () => switchView('produk'));
 
+  // Live kembalian preview
+  const changeDisplay = root.querySelector('#changeDisplay');
+  const errPayment = root.querySelector('#err-payment');
+
+  function updateChangePreview() {
+    const payment = Number(paymentInput.value || 0);
+    const total = state.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+
+    errPayment.classList.add('hidden');
+    paymentInput.classList.remove('border-red-400', 'ring-1', 'ring-red-300');
+
+    if (!paymentInput.value || payment <= 0) {
+      changeDisplay.classList.add('hidden');
+      return;
+    }
+
+    const change = payment - total;
+    changeDisplay.classList.remove('hidden');
+
+    if (change < 0) {
+      changeDisplay.className = 'rounded-xl px-3 py-2 text-sm font-semibold flex justify-between items-center bg-red-50 border border-red-200 text-red-700';
+      changeDisplay.innerHTML = `<span>Uang kurang</span><span>${formatter.format(Math.abs(change))}</span>`;
+    } else if (change === 0) {
+      changeDisplay.className = 'rounded-xl px-3 py-2 text-sm font-semibold flex justify-between items-center bg-emerald-50 border border-emerald-200 text-emerald-700';
+      changeDisplay.innerHTML = `<span>✓ Pas</span><span>${formatter.format(0)}</span>`;
+    } else {
+      changeDisplay.className = 'rounded-xl px-3 py-2 text-sm font-semibold flex justify-between items-center bg-amber-50 border border-amber-200 text-amber-700';
+      changeDisplay.innerHTML = `<span>Kembalian</span><span>${formatter.format(change)}</span>`;
+    }
+  }
+
+  paymentInput.addEventListener('input', updateChangePreview);
+
   root.querySelector('#checkoutBtn').addEventListener('click', async () => {
     const payment = Number(paymentInput.value || 0);
+    const total = state.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+
+    errPayment.classList.add('hidden');
+    paymentInput.classList.remove('border-red-400', 'ring-1', 'ring-red-300');
+
+    if (!paymentInput.value || payment <= 0) {
+      errPayment.textContent = 'Uang bayar tidak boleh kosong atau 0.';
+      errPayment.classList.remove('hidden');
+      paymentInput.classList.add('border-red-400', 'ring-1', 'ring-red-300');
+      paymentInput.focus();
+      return;
+    }
+
+    if (payment < total) {
+      errPayment.textContent = `Uang kurang ${formatter.format(total - payment)}.`;
+      errPayment.classList.remove('hidden');
+      paymentInput.classList.add('border-red-400', 'ring-1', 'ring-red-300');
+      paymentInput.focus();
+      return;
+    }
+
     await checkout(payment);
   });
 
@@ -773,27 +830,31 @@ function openProductDialog(productId = null) {
       </div>
 
       <div>
-        <label class="text-sm text-slate-600">Nama Produk</label>
-        <input name="name" class="input" required value="${product?.name || ''}" />
+        <label class="text-sm text-slate-600">Nama Produk <span class="text-red-500">*</span></label>
+        <input name="name" class="input" placeholder="Contoh: Kopi Susu Gula Aren" value="${product?.name || ''}" />
+        <p id="err-name" class="hidden mt-1 text-xs text-red-500 font-medium"></p>
       </div>
 
       <div class="grid sm:grid-cols-2 gap-3">
         <div>
-          <label class="text-sm text-slate-600">Kategori</label>
-          <select name="categoryId" class="select" required>
+          <label class="text-sm text-slate-600">Kategori <span class="text-red-500">*</span></label>
+          <select name="categoryId" class="select">
             <option value="">Pilih kategori</option>
             ${state.categories.map((c) => `<option value="${c.id}" ${product?.categoryId === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
           </select>
+          <p id="err-category" class="hidden mt-1 text-xs text-red-500 font-medium"></p>
         </div>
         <div>
-          <label class="text-sm text-slate-600">Harga</label>
-          <input name="price" type="number" min="0" class="input" required value="${product?.price || ''}" />
+          <label class="text-sm text-slate-600">Harga (Rp) <span class="text-red-500">*</span></label>
+          <input name="price" type="number" min="1" class="input" placeholder="Minimal Rp 1" value="${product?.price || ''}" />
+          <p id="err-price" class="hidden mt-1 text-xs text-red-500 font-medium"></p>
         </div>
       </div>
 
       <div>
-        <label class="text-sm text-slate-600">Stock</label>
-        <input name="stock" type="number" min="0" class="input" required value="${product?.stock || 0}" />
+        <label class="text-sm text-slate-600">Stock <span class="text-red-500">*</span></label>
+        <input name="stock" type="number" min="1" class="input" placeholder="Minimal 1" value="${product?.stock || ''}" />
+        <p id="err-stock" class="hidden mt-1 text-xs text-red-500 font-medium"></p>
       </div>
 
       <div>
@@ -803,7 +864,7 @@ function openProductDialog(productId = null) {
             class="w-full h-36 object-cover rounded-xl border border-amber-100 bg-stone-50 ${product?.image ? '' : 'hidden'}" />
           <label class="btn btn-soft cursor-pointer text-center">
             Pilih Foto
-            <input id="imageFileInput" type="file" class="hidden" />
+            <input id="imageFileInput" type="file" accept="image/*" class="hidden" />
           </label>
           <p id="uploadStatus" class="text-xs text-slate-400"></p>
           <input type="hidden" name="image" id="imageUrlHidden" value="${product?.image || ''}" />
@@ -812,7 +873,7 @@ function openProductDialog(productId = null) {
 
       <div class="flex justify-end gap-2">
         <button type="button" class="btn btn-soft" id="cancelProductDialog">Batal</button>
-        <button type="submit" class="btn btn-primary">Simpan</button>
+        <button type="submit" class="btn btn-primary" id="saveProductBtn">Simpan</button>
       </div>
     </form>
   `;
@@ -853,32 +914,122 @@ function openProductDialog(productId = null) {
   dialog.querySelector('#closeProductDialog').addEventListener('click', close);
   dialog.querySelector('#cancelProductDialog').addEventListener('click', close);
 
+  // Helper: show/clear inline field errors
+  function showFieldError(id, message) {
+    const el = dialog.querySelector(`#${id}`);
+    if (!el) return;
+    el.textContent = message;
+    el.classList.remove('hidden');
+    // Highlight the associated input
+    const input = el.previousElementSibling;
+    if (input && (input.tagName === 'INPUT' || input.tagName === 'SELECT')) {
+      input.classList.add('border-red-400', 'ring-1', 'ring-red-300');
+    }
+  }
+
+  function clearFieldError(id) {
+    const el = dialog.querySelector(`#${id}`);
+    if (!el) return;
+    el.textContent = '';
+    el.classList.add('hidden');
+    const input = el.previousElementSibling;
+    if (input && (input.tagName === 'INPUT' || input.tagName === 'SELECT')) {
+      input.classList.remove('border-red-400', 'ring-1', 'ring-red-300');
+    }
+  }
+
+  function clearAllErrors() {
+    ['err-name', 'err-category', 'err-price', 'err-stock'].forEach(clearFieldError);
+  }
+
+  // Clear error on input change
+  ['name', 'categoryId', 'price', 'stock'].forEach((field) => {
+    const errId = field === 'categoryId' ? 'err-category' : `err-${field}`;
+    const el = dialog.querySelector(`[name="${field}"]`);
+    if (el) el.addEventListener('input', () => clearFieldError(errId));
+    if (el) el.addEventListener('change', () => clearFieldError(errId));
+  });
+
   dialog.querySelector('#productForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    clearAllErrors();
+
     const fd = new FormData(e.target);
+    const name = String(fd.get('name') || '').trim();
+    const categoryId = String(fd.get('categoryId') || '');
+    const price = Number(fd.get('price') || 0);
+    const stock = Number(fd.get('stock') || 0);
+
+    // --- Validation ---
+    let hasError = false;
+
+    if (!name) {
+      showFieldError('err-name', 'Nama produk wajib diisi.');
+      hasError = true;
+    } else if (name.length < 2) {
+      showFieldError('err-name', 'Nama produk minimal 2 karakter.');
+      hasError = true;
+    } else {
+      // Cek nama duplikat (case-insensitive), kecuali produk yang sedang diedit
+      const nameLower = name.toLowerCase();
+      const duplicate = state.products.find(
+        (p) => p.name.toLowerCase() === nameLower && p.id !== (product?.id || null)
+      );
+      if (duplicate) {
+        showFieldError('err-name', `Nama "${name}" sudah digunakan produk lain.`);
+        hasError = true;
+      }
+    }
+
+    if (!categoryId) {
+      showFieldError('err-category', 'Pilih kategori terlebih dahulu.');
+      hasError = true;
+    }
+
+    if (!fd.get('price') && fd.get('price') !== '0') {
+      showFieldError('err-price', 'Harga wajib diisi.');
+      hasError = true;
+    } else if (price <= 0) {
+      showFieldError('err-price', 'Harga harus lebih dari Rp 0.');
+      hasError = true;
+    }
+
+    if (!fd.get('stock') && fd.get('stock') !== '0') {
+      showFieldError('err-stock', 'Stock wajib diisi.');
+      hasError = true;
+    } else if (!Number.isInteger(stock) || stock < 1) {
+      showFieldError('err-stock', 'Stock minimal 1 dan harus angka bulat.');
+      hasError = true;
+    }
+
+    if (hasError) return;
+
+    // --- Save ---
+    const saveBtn = dialog.querySelector('#saveProductBtn');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Menyimpan...';
 
     const payload = {
-      name: String(fd.get('name') || '').trim(),
-      category_id: String(fd.get('categoryId') || ''),
-      price: Number(fd.get('price') || 0),
-      stock: Number(fd.get('stock') || 0),
+      name,
+      category_id: categoryId,
+      price,
+      stock,
       image_url: imageUrlHidden ? imageUrlHidden.value.trim() : ''
     };
-
-    if (!payload.name || !payload.category_id) {
-      notify.warning('Nama dan kategori wajib diisi.');
-      return;
-    }
 
     if (product) {
       const res = await db.from('products').update(payload).eq('id', product.id);
       if (res.error) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Simpan';
         notify.error(`Gagal update produk: ${res.error.message}`);
         return;
       }
     } else {
       const res = await db.from('products').insert(payload);
       if (res.error) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Simpan';
         notify.error(`Gagal tambah produk: ${res.error.message}`);
         return;
       }

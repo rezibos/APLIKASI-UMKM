@@ -1,0 +1,1063 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Warong Searah – Kopi & Kuliner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@300;400;500;600&family=Italiana&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --brown-50:  #fbf7f2;
+      --brown-100: #f3e7d8;
+      --brown-200: #e8ceaf;
+      --brown-400: #c08457;
+      --brown-600: #a15f34;
+      --brown-700: #7c4521;
+      --brown-900: #3d1f08;
+      --cream:     #fdf8f3;
+      --stone:     #44403c;
+      --gold:      #d4a853;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--cream);
+      color: var(--stone);
+      overflow-x: hidden;
+    }
+
+    /* ── LOADING SCREEN ─────────────────────────────────── */
+    #loader {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--brown-700);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 28px;
+      transition: none;
+    }
+
+    #loader.slide-out {
+      animation: loaderSlide 0.9s cubic-bezier(0.76, 0, 0.24, 1) forwards;
+    }
+
+    @keyframes loaderSlide {
+      0%   { clip-path: inset(0 0 0 0); opacity: 1; }
+      70%  { clip-path: inset(0 0 0 0); opacity: 1; }
+      100% { clip-path: inset(100% 0 0 0); opacity: 0; pointer-events: none; }
+    }
+
+    .loader-logo-wrap {
+      animation: loaderPop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
+    }
+    @keyframes loaderPop {
+      from { transform: scale(0.5); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+
+    .loader-img {
+      width: 110px; height: 110px;
+      border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.3);
+      object-fit: cover;
+      display: block;
+    }
+
+    .loader-name {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      color: #fff;
+      letter-spacing: 0.04em;
+      animation: loaderPop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s both;
+    }
+
+    .loader-sub {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.55);
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      animation: loaderPop 0.6s ease 0.7s both;
+    }
+
+    .loader-bar {
+      width: 180px; height: 3px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 99px;
+      overflow: hidden;
+      animation: loaderPop 0.4s ease 0.8s both;
+    }
+    .loader-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold), #fff);
+      border-radius: 99px;
+      animation: barGrow 1.8s ease-in-out 0.9s forwards;
+      width: 0%;
+    }
+    @keyframes barGrow {
+      0%   { width: 0%; }
+      60%  { width: 80%; }
+      100% { width: 100%; }
+    }
+
+    /* ── NAVBAR ─────────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 0 5%;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 68px;
+      background: rgba(253,248,243,0.88);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--brown-100);
+      transition: box-shadow 0.3s;
+    }
+    nav.scrolled { box-shadow: 0 4px 30px rgba(124,69,33,0.10); }
+
+    .nav-brand {
+      display: flex; align-items: center; gap: 12px;
+      text-decoration: none;
+    }
+    .nav-brand img {
+      width: 40px; height: 40px;
+      border-radius: 10px; object-fit: cover;
+      border: 1.5px solid var(--brown-200);
+    }
+    .nav-brand-text {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.15rem; font-weight: 700;
+      color: var(--brown-700);
+    }
+
+    .nav-links {
+      display: flex; gap: 32px; list-style: none;
+    }
+    .nav-links a {
+      text-decoration: none;
+      font-size: 0.875rem; font-weight: 500;
+      color: var(--stone);
+      transition: color 0.2s;
+      letter-spacing: 0.01em;
+    }
+    .nav-links a:hover { color: var(--brown-700); }
+
+    .nav-cta {
+      background: var(--brown-700);
+      color: #fff;
+      padding: 9px 22px;
+      border-radius: 10px;
+      font-size: 0.875rem; font-weight: 600;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .nav-cta:hover { background: var(--brown-600); transform: translateY(-1px); }
+
+    /* mobile hamburger */
+    .hamburger {
+      display: none; flex-direction: column; gap: 5px;
+      cursor: pointer; padding: 6px;
+    }
+    .hamburger span {
+      display: block; width: 24px; height: 2px;
+      background: var(--brown-700); border-radius: 2px;
+      transition: all 0.3s;
+    }
+
+    /* mobile nav */
+    .mobile-nav {
+      display: none;
+      position: fixed; inset: 0; z-index: 99;
+      background: var(--cream);
+      flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 36px;
+    }
+    .mobile-nav.open { display: flex; }
+    .mobile-nav a {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem; color: var(--brown-700);
+      text-decoration: none;
+    }
+    .mobile-close {
+      position: absolute; top: 22px; right: 22px;
+      background: none; border: none;
+      font-size: 1.8rem; color: var(--brown-700); cursor: pointer;
+    }
+
+    /* ── HERO ────────────────────────────────────────────── */
+    #hero {
+      position: relative;
+      min-height: 100svh;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+
+    .hero-bg {
+      position: absolute; inset: 0;
+      background: var(--brown-900);
+    }
+    .hero-bg img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      opacity: 0.45;
+    }
+    /* warm grain overlay */
+    .hero-bg::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(
+        160deg,
+        rgba(61,31,8,0.7) 0%,
+        rgba(124,69,33,0.4) 50%,
+        rgba(61,31,8,0.8) 100%
+      );
+    }
+
+    .hero-content {
+      position: relative; z-index: 2;
+      text-align: center;
+      padding: 0 5%;
+      max-width: 780px;
+    }
+
+    .hero-badge {
+      display: inline-block;
+      background: rgba(212,168,83,0.2);
+      border: 1px solid rgba(212,168,83,0.5);
+      color: var(--gold);
+      font-size: 0.72rem; font-weight: 600;
+      letter-spacing: 0.3em; text-transform: uppercase;
+      padding: 6px 18px; border-radius: 99px;
+      margin-bottom: 24px;
+      backdrop-filter: blur(8px);
+    }
+
+    .hero-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(3rem, 9vw, 7rem);
+      font-weight: 900;
+      color: #fff;
+      line-height: 1.0;
+      margin-bottom: 20px;
+      letter-spacing: -0.01em;
+    }
+    .hero-title em {
+      font-style: italic;
+      color: var(--gold);
+    }
+
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      color: rgba(255,255,255,0.7);
+      max-width: 480px;
+      margin: 0 auto 36px;
+      line-height: 1.65;
+    }
+
+    .hero-btns {
+      display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+    }
+    .btn-primary {
+      background: var(--brown-700);
+      color: #fff;
+      padding: 14px 32px;
+      border-radius: 12px;
+      font-weight: 600; font-size: 0.95rem;
+      text-decoration: none;
+      border: none; cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+      display: inline-block;
+    }
+    .btn-primary:hover { background: var(--brown-600); transform: translateY(-2px); }
+    .btn-outline {
+      background: transparent;
+      color: #fff;
+      padding: 14px 32px;
+      border-radius: 12px;
+      font-weight: 600; font-size: 0.95rem;
+      text-decoration: none;
+      border: 2px solid rgba(255,255,255,0.35);
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s, transform 0.15s;
+      display: inline-block;
+    }
+    .btn-outline:hover {
+      border-color: rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.08);
+      transform: translateY(-2px);
+    }
+
+    .hero-logo-circle {
+      width: 130px; height: 130px;
+      border-radius: 50%;
+      border: 3px solid rgba(212,168,83,0.5);
+      object-fit: cover;
+      margin: 0 auto 28px;
+      display: block;
+      box-shadow: 0 0 40px rgba(212,168,83,0.2);
+    }
+
+    .hero-scroll {
+      position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%);
+      z-index: 2;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      color: rgba(255,255,255,0.5);
+      font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase;
+      animation: scrollBob 2s ease-in-out infinite;
+    }
+    .hero-scroll svg { animation: scrollBob 2s ease-in-out infinite 0.4s; }
+    @keyframes scrollBob {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50%       { transform: translateX(-50%) translateY(8px); }
+    }
+
+    /* ── SECTION COMMON ──────────────────────────────────── */
+    section { padding: 80px 5%; }
+    .section-label {
+      font-size: 0.72rem; font-weight: 600;
+      letter-spacing: 0.3em; text-transform: uppercase;
+      color: var(--brown-400); margin-bottom: 10px;
+    }
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 700;
+      color: var(--brown-900);
+      line-height: 1.15;
+      margin-bottom: 12px;
+    }
+    .section-sub {
+      font-size: 1rem;
+      color: #78716c;
+      max-width: 480px;
+    }
+    .section-head { margin-bottom: 52px; }
+    .section-head.centered { text-align: center; }
+    .section-head.centered .section-sub { margin: 0 auto; }
+
+    /* ── MENU ────────────────────────────────────────────── */
+    #menu { background: var(--brown-50); }
+
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 24px;
+    }
+
+    .menu-card {
+      background: #fff;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid var(--brown-100);
+      transition: transform 0.25s, box-shadow 0.25s;
+    }
+    .menu-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 16px 40px rgba(124,69,33,0.13);
+    }
+
+    .menu-img-wrap {
+      height: 190px;
+      background: var(--brown-100);
+      overflow: hidden;
+      position: relative;
+    }
+    .menu-img-wrap img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transition: transform 0.4s;
+    }
+    .menu-card:hover .menu-img-wrap img { transform: scale(1.06); }
+
+    /* placeholder when no image */
+    .menu-img-placeholder {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--brown-100) 0%, var(--brown-200) 100%);
+    }
+    .menu-img-placeholder svg { opacity: 0.4; }
+
+    .menu-tag {
+      position: absolute; top: 12px; left: 12px;
+      background: var(--brown-700); color: #fff;
+      font-size: 0.68rem; font-weight: 600;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 6px;
+    }
+
+    .menu-body { padding: 18px 20px 22px; }
+    .menu-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.15rem; font-weight: 700;
+      color: var(--brown-900); margin-bottom: 6px;
+    }
+    .menu-desc {
+      font-size: 0.875rem; color: #78716c; line-height: 1.55;
+      margin-bottom: 14px;
+    }
+    .menu-price {
+      font-weight: 700; font-size: 1rem;
+      color: var(--brown-700);
+    }
+
+    /* ── TESTIMONIALS ────────────────────────────────────── */
+    #testimonials { background: #fff; }
+
+    .testi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px;
+    }
+
+    .testi-card {
+      background: var(--brown-50);
+      border: 1px solid var(--brown-100);
+      border-radius: 18px;
+      padding: 28px;
+      position: relative;
+    }
+    .testi-quote {
+      font-size: 4rem;
+      line-height: 0.8;
+      color: var(--brown-200);
+      font-family: 'Playfair Display', serif;
+      margin-bottom: 12px;
+    }
+    .testi-text {
+      font-size: 0.95rem;
+      color: var(--stone);
+      line-height: 1.65;
+      font-style: italic;
+      margin-bottom: 20px;
+    }
+    .testi-author {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .testi-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: var(--brown-200);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Playfair Display', serif;
+      font-size: 1rem; font-weight: 700;
+      color: var(--brown-700);
+    }
+    .testi-name {
+      font-weight: 600; font-size: 0.9rem; color: var(--brown-900);
+    }
+    .testi-stars {
+      color: var(--gold); font-size: 0.8rem; letter-spacing: 2px;
+    }
+
+    /* ── MAP ─────────────────────────────────────────────── */
+    #peta { background: var(--brown-50); }
+
+    .map-wrap {
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid var(--brown-200);
+      box-shadow: 0 10px 40px rgba(124,69,33,0.1);
+      height: 420px;
+    }
+    .map-wrap iframe {
+      width: 100%; height: 100%; border: none;
+    }
+
+    /* ── BOOKING ─────────────────────────────────────────── */
+    #pesan { background: #fff; }
+
+    .booking-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: center;
+    }
+
+    .booking-img-wrap {
+      border-radius: 20px; overflow: hidden;
+      height: 480px;
+      background: var(--brown-200);
+      position: relative;
+    }
+    .booking-img-wrap img {
+      width: 100%; height: 100%; object-fit: cover;
+    }
+    .booking-img-deco {
+      position: absolute; inset: -1px;
+      border-radius: 20px;
+      border: 2px solid rgba(212,168,83,0.35);
+      pointer-events: none;
+    }
+
+    .booking-form { display: flex; flex-direction: column; gap: 20px; }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label {
+      font-size: 0.82rem; font-weight: 600;
+      color: var(--brown-900); letter-spacing: 0.02em;
+    }
+    .form-input {
+      padding: 12px 16px;
+      border: 1.5px solid var(--brown-200);
+      border-radius: 10px;
+      font-size: 0.9rem;
+      background: var(--brown-50);
+      color: var(--stone);
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-input:focus {
+      border-color: var(--brown-600);
+      box-shadow: 0 0 0 3px rgba(161,95,52,0.12);
+    }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .submit-btn {
+      padding: 14px;
+      background: var(--brown-700);
+      color: #fff;
+      border: none; border-radius: 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem; font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+      letter-spacing: 0.02em;
+    }
+    .submit-btn:hover { background: var(--brown-600); transform: translateY(-2px); }
+
+    .form-success {
+      display: none;
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      color: #166534;
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    /* ── FOOTER ──────────────────────────────────────────── */
+    footer {
+      background: var(--brown-900);
+      color: rgba(255,255,255,0.7);
+      padding: 60px 5% 36px;
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr;
+      gap: 48px;
+      margin-bottom: 48px;
+    }
+
+    .footer-brand {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 16px;
+    }
+    .footer-brand img {
+      width: 44px; height: 44px;
+      border-radius: 10px; object-fit: cover;
+      border: 1.5px solid rgba(255,255,255,0.15);
+    }
+    .footer-brand-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem; color: #fff; font-weight: 700;
+    }
+    .footer-desc {
+      font-size: 0.875rem; line-height: 1.7;
+      max-width: 280px;
+    }
+
+    .footer-heading {
+      font-weight: 700; font-size: 0.85rem;
+      color: #fff; letter-spacing: 0.08em;
+      text-transform: uppercase; margin-bottom: 18px;
+    }
+    .footer-links { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .footer-links a {
+      text-decoration: none;
+      color: rgba(255,255,255,0.6);
+      font-size: 0.875rem;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--gold); }
+
+    .footer-contact-item {
+      display: flex; gap: 10px; align-items: flex-start;
+      font-size: 0.875rem; margin-bottom: 12px;
+    }
+    .footer-contact-item svg { flex-shrink: 0; margin-top: 2px; }
+
+    .footer-divider {
+      border: none; border-top: 1px solid rgba(255,255,255,0.1);
+      margin-bottom: 24px;
+    }
+
+    .footer-bottom {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 0.8rem;
+      flex-wrap: wrap; gap: 8px;
+    }
+    .footer-bottom a { color: var(--gold); text-decoration: none; }
+
+    /* ── SCROLL REVEAL ───────────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .reveal.visible {
+      opacity: 1; transform: translateY(0);
+    }
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+
+    /* ── RESPONSIVE ──────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .booking-grid { grid-template-columns: 1fr; }
+      .booking-img-wrap { height: 280px; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 640px) {
+      .nav-links, .nav-cta { display: none; }
+      .hamburger { display: flex; }
+      .form-row { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr; }
+      .footer-bottom { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── LOADING SCREEN ─────────────────────────────────────── -->
+<div id="loader">
+  <div class="loader-logo-wrap">
+    <img class="loader-img" src="assets/logo.jpg" alt="Warong Searah"
+         onerror="this.style.display='none'; document.getElementById('loaderInitial').style.display='flex'" />
+    <div id="loaderInitial" style="display:none;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,0.12);border:3px solid rgba(255,255,255,0.3);align-items:center;justify-content:center;">
+      <span style="font-family:'Playfair Display',serif;font-size:2rem;color:#fff;font-weight:700;">W</span>
+    </div>
+  </div>
+  <div class="loader-name">Warong Searah</div>
+  <div class="loader-sub">Kopi & Kuliner Nusantara</div>
+  <div class="loader-bar"><div class="loader-bar-fill"></div></div>
+</div>
+
+<!-- ── NAVBAR ─────────────────────────────────────────────── -->
+<nav id="navbar">
+  <a href="#" class="nav-brand">
+    <img src="assets/logo.jpg" alt="Warong Searah"
+         onerror="this.style.background='var(--brown-200)';this.src=''" />
+    <span class="nav-brand-text">Warong Searah</span>
+  </a>
+
+  <ul class="nav-links">
+    <li><a href="#hero">Beranda</a></li>
+    <li><a href="#menu">Menu</a></li>
+    <li><a href="#testimonials">Ulasan</a></li>
+    <li><a href="#peta">Lokasi</a></li>
+    <li><a href="#pesan">Kontak</a></li>
+  </ul>
+
+  <a href="#pesan" class="nav-cta">Pesan Sekarang</a>
+
+  <div class="hamburger" id="hamburger">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<!-- Mobile Nav -->
+<div class="mobile-nav" id="mobileNav">
+  <button class="mobile-close" id="mobileClose">✕</button>
+  <a href="#hero"          onclick="closeMobileNav()">Beranda</a>
+  <a href="#menu"          onclick="closeMobileNav()">Menu</a>
+  <a href="#testimonials"  onclick="closeMobileNav()">Ulasan</a>
+  <a href="#peta"          onclick="closeMobileNav()">Lokasi</a>
+  <a href="#pesan"         onclick="closeMobileNav()">Pesan</a>
+</div>
+
+<!-- ── HERO ───────────────────────────────────────────────── -->
+<section id="hero">
+  <div class="hero-bg">
+    <img src="assets/hero-bg.jpg" alt="Suasana Warong Searah"
+         onerror="this.style.display='none'" />
+  </div>
+
+  <div class="hero-content">
+    <img class="hero-logo-circle" src="assets/logo.jpg" alt="Warong Searah"
+         onerror="this.style.display='none'" />
+    <div class="hero-badge">☕ Sejak 2020 · Tanjung Pinang</div>
+    <h1 class="hero-title">
+      <em>Warong</em><br>Searah
+    </h1>
+    <p class="hero-sub">
+      Tempat ngopi dengan rasa autentik, suasana hangat, dan cita rasa Nusantara yang tak terlupakan.
+    </p>
+    <div class="hero-btns">
+      <a href="#menu" class="btn-primary">Lihat Menu</a>
+      <a href="#pesan" class="btn-outline">Reservasi Meja</a>
+    </div>
+  </div>
+
+  <div class="hero-scroll">
+    <span>Scroll</span>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+  </div>
+</section>
+
+<!-- ── MENU UNGGULAN ──────────────────────────────────────── -->
+<section id="menu">
+  <div class="section-head centered">
+    <p class="section-label">Pilihan Kami</p>
+    <h2 class="section-title">Menu Unggulan</h2>
+    <p class="section-sub">Temukan penawaran terbaik kami, dibuat dengan bahan pilihan setiap hari.</p>
+  </div>
+
+  <div class="menu-grid">
+    <!-- Card 1 -->
+    <div class="menu-card reveal">
+      <div class="menu-img-wrap">
+        <div class="menu-img-placeholder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a15f34" stroke-width="1.5">
+            <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+            <line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line>
+          </svg>
+        </div>
+        <span class="menu-tag">Andalan</span>
+      </div>
+      <div class="menu-body">
+        <div class="menu-name">Kopi Searah Original</div>
+        <p class="menu-desc">Perpaduan arabika dan robusta pilihan dengan sentuhan rempah khas Nusantara.</p>
+        <div class="menu-price">Rp 18.000</div>
+      </div>
+    </div>
+
+    <!-- Card 2 -->
+    <div class="menu-card reveal reveal-delay-1">
+      <div class="menu-img-wrap">
+        <div class="menu-img-placeholder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a15f34" stroke-width="1.5">
+            <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+            <line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line>
+          </svg>
+        </div>
+        <span class="menu-tag">Populer</span>
+      </div>
+      <div class="menu-body">
+        <div class="menu-name">Es Kopi Susu</div>
+        <p class="menu-desc">Kopi susu segar dengan gula aren asli, disajikan dingin dengan es batu kristal.</p>
+        <div class="menu-price">Rp 22.000</div>
+      </div>
+    </div>
+
+    <!-- Card 3 -->
+    <div class="menu-card reveal reveal-delay-2">
+      <div class="menu-img-wrap">
+        <div class="menu-img-placeholder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a15f34" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line>
+          </svg>
+        </div>
+      </div>
+      <div class="menu-body">
+        <div class="menu-name">Roti Bakar Klasik</div>
+        <p class="menu-desc">Roti panggang tebal dengan selai kacang, cokelat, atau keju leleh premium.</p>
+        <div class="menu-price">Rp 15.000</div>
+      </div>
+    </div>
+
+    <!-- Card 4 -->
+    <div class="menu-card reveal reveal-delay-3">
+      <div class="menu-img-wrap">
+        <div class="menu-img-placeholder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a15f34" stroke-width="1.5">
+            <path d="M12 2a7 7 0 0 1 7 7c0 4-7 13-7 13S5 13 5 9a7 7 0 0 1 7-7z"></path>
+            <circle cx="12" cy="9" r="2.5"></circle>
+          </svg>
+        </div>
+      </div>
+      <div class="menu-body">
+        <div class="menu-name">Matcha Latte</div>
+        <p class="menu-desc">Matcha grade premium dari Jepang, dipadukan susu full cream hangat yang creamy.</p>
+        <div class="menu-price">Rp 25.000</div>
+      </div>
+    </div>
+
+    <!-- Card 5 -->
+    <div class="menu-card reveal">
+      <div class="menu-img-wrap">
+        <div class="menu-img-placeholder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a15f34" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path>
+          </svg>
+        </div>
+      </div>
+      <div class="menu-body">
+        <div class="menu-name">Nasi Goreng Kampung</div>
+        <p class="menu-desc">Nasi goreng autentik dengan bumbu tradisional, telur mata sapi, dan kerupuk.</p>
+        <div class="menu-price">Rp 28.000</div>
+      </div>
+    </div>
+
+    <!-- Card 6 -->
+    <div class="menu-card reveal reveal-delay-1">
+      <div class="menu-img-wrap">
+        <div class="menu-img-placeholder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a15f34" stroke-width="1.5">
+            <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+          </svg>
+        </div>
+        <span class="menu-tag">Baru</span>
+      </div>
+      <div class="menu-body">
+        <div class="menu-name">Kopi Tubruk Melayu</div>
+        <p class="menu-desc">Kopi tubruk khas Melayu dengan cita rasa bold dan aroma rempah yang kuat.</p>
+        <div class="menu-price">Rp 12.000</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── TESTIMONIALS ────────────────────────────────────────── -->
+<section id="testimonials">
+  <div class="section-head centered">
+    <p class="section-label">Kata Mereka</p>
+    <h2 class="section-title">Apa Kata Pelanggan Kami</h2>
+    <p class="section-sub">Dengar langsung dari pelanggan setia yang sudah merasakan kelezatannya.</p>
+  </div>
+
+  <div class="testi-grid">
+    <div class="testi-card reveal">
+      <div class="testi-quote">"</div>
+      <p class="testi-text">Kopi di sini beda banget! Aroma rempahnya berasa tapi tetap enak. Sudah 3 tahun langganan dan nggak bosan-bosan.</p>
+      <div class="testi-author">
+        <div class="testi-avatar">A</div>
+        <div>
+          <div class="testi-name">Ahmad Fauzi</div>
+          <div class="testi-stars">★★★★★</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="testi-card reveal reveal-delay-1">
+      <div class="testi-quote">"</div>
+      <p class="testi-text">Tempatnya nyaman banget buat kerja atau nongkrong bareng teman. Wi-Fi kencang, kopi enak, harga ramah kantong!</p>
+      <div class="testi-author">
+        <div class="testi-avatar">S</div>
+        <div>
+          <div class="testi-name">Siti Rahayu</div>
+          <div class="testi-stars">★★★★★</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="testi-card reveal reveal-delay-2">
+      <div class="testi-quote">"</div>
+      <p class="testi-text">Es kopi susunya juara! Gula arennya pas, tidak terlalu manis. Selalu jadi pilihan pertama setiap pagi saya.</p>
+      <div class="testi-author">
+        <div class="testi-avatar">R</div>
+        <div>
+          <div class="testi-name">Rizky Pratama</div>
+          <div class="testi-stars">★★★★★</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── PETA ────────────────────────────────────────────────── -->
+<section id="peta" style="background:var(--brown-50);">
+  <div class="section-head centered">
+    <p class="section-label">Lokasi Kami</p>
+    <h2 class="section-title">Temukan Kami</h2>
+    <p class="section-sub">Kunjungi warung kami di Tanjung Pinang, Kepulauan Riau.</p>
+  </div>
+
+  <div class="map-wrap reveal">
+    <!-- Embed Google Maps (ganti dengan koordinat lokasi sebenarnya) -->
+    <iframe
+      src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d127484.41066694!2d104.38!3d0.9167!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x31d988760553a3b3%3A0xa3f34f7a1e26b580!2sTanjungpinang%2C%20Kepulauan%20Riau!5e0!3m2!1sid!2sid!4v1234567890"
+      allowfullscreen="" loading="lazy"
+      referrerpolicy="no-referrer-when-downgrade"
+      title="Lokasi Warong Searah">
+    </iframe>
+  </div>
+</section>
+
+<!-- ── RESERVASI ───────────────────────────────────────────── -->
+<section id="pesan">
+  <div class="booking-grid">
+    <div class="booking-img-wrap reveal">
+      <img src="assets/logo.jpg" alt="Suasana Warong Searah"
+           style="object-position: center; filter: brightness(0.92);"
+           onerror="this.parentElement.style.background='linear-gradient(135deg,var(--brown-200),var(--brown-100))'" />
+      <div class="booking-img-deco"></div>
+    </div>
+
+    <div class="reveal reveal-delay-1">
+      <p class="section-label">Reservasi</p>
+      <h2 class="section-title">Pesan Meja<br><em style="font-style:italic;color:var(--brown-400);">Sekarang</em></h2>
+      <p class="section-sub" style="margin-bottom:32px;">Pastikan meja Anda tersedia. Hubungi kami via WhatsApp atau isi form di bawah.</p>
+
+      <div class="booking-form" id="bookingForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nama Lengkap</label>
+            <input type="text" class="form-input" placeholder="Nama Anda" id="fName" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nomor Telepon</label>
+            <input type="tel" class="form-input" placeholder="+62 ..." id="fPhone" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Tanggal Kunjungan</label>
+            <input type="date" class="form-input" id="fDate" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Jumlah Orang</label>
+            <input type="number" class="form-input" placeholder="2" min="1" max="50" id="fPeople" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Catatan (opsional)</label>
+          <input type="text" class="form-input" placeholder="Permintaan khusus, meja outdoor, dsb." id="fNote" />
+        </div>
+
+        <button class="submit-btn" onclick="submitBooking()">Kirim Pemesanan via WhatsApp</button>
+        <div class="form-success" id="formSuccess">
+          ✅ Terima kasih! Pemesanan Anda sedang kami proses. Kami akan menghubungi Anda segera.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ──────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-brand">
+        <img src="assets/logo.jpg" alt="Warong Searah"
+             onerror="this.style.background='rgba(255,255,255,0.1)';this.src=''" />
+        <div class="footer-brand-name">Warong Searah</div>
+      </div>
+      <p class="footer-desc">
+        Warung kopi dan kuliner Nusantara dengan cita rasa autentik di jantung Tanjung Pinang, Kepulauan Riau.
+      </p>
+    </div>
+
+    <div>
+      <div class="footer-heading">Navigasi</div>
+      <ul class="footer-links">
+        <li><a href="#hero">Beranda</a></li>
+        <li><a href="#menu">Menu</a></li>
+        <li><a href="#testimonials">Ulasan</a></li>
+        <li><a href="#peta">Lokasi</a></li>
+        <li><a href="#pesan">Reservasi</a></li>
+      </ul>
+    </div>
+
+    <div>
+      <div class="footer-heading">Hubungi Kami</div>
+      <div class="footer-contact-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.93 9.75 19.79 19.79 0 0 1 1.97 1.15 2 2 0 0 1 3.98 0h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9a16 16 0 0 0 6.91 6.91l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+        </svg>
+        <span>+62 812-3456-7890</span>
+      </div>
+      <div class="footer-contact-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline>
+        </svg>
+        <span>info@warongsearah.id</span>
+      </div>
+      <div class="footer-contact-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle>
+        </svg>
+        <span>Jl. Searah No.1, Tanjung Pinang, Kepulauan Riau</span>
+      </div>
+      <div class="footer-contact-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <span>Setiap hari 07.00 – 23.00 WIB</span>
+      </div>
+    </div>
+  </div>
+
+  <hr class="footer-divider" />
+
+  <div class="footer-bottom">
+    <span>© 2025 Warong Searah. Hak cipta dilindungi.</span>
+    <span>Dibuat dengan ❤️ di Tanjung Pinang</span>
+  </div>
+</footer>
+
+<script>
+  // ── LOADING ────────────────────────────────────────────────
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      const loader = document.getElementById('loader');
+      loader.classList.add('slide-out');
+      setTimeout(() => { loader.style.display = 'none'; }, 950);
+    }, 2600);
+  });
+
+  // ── NAVBAR SCROLL ──────────────────────────────────────────
+  const navbar = document.getElementById('navbar');
+  window.addEventListener('scroll', () => {
+    navbar.classList.toggle('scrolled', window.scrollY > 40);
+  });
+
+  // ── MOBILE NAV ─────────────────────────────────────────────
+  document.getElementById('hamburger').addEventListener('click', () => {
+    document.getElementById('mobileNav').classList.add('open');
+  });
+  document.getElementById('mobileClose').addEventListener('click', closeMobileNav);
+  function closeMobileNav() {
+    document.getElementById('mobileNav').classList.remove('open');
+  }
+
+  // ── SCROLL REVEAL ──────────────────────────────────────────
+  const reveals = document.querySelectorAll('.reveal');
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.12 });
+  reveals.forEach(el => obs.observe(el));
+
+  // ── BOOKING FORM ───────────────────────────────────────────
+  function submitBooking() {
+    const name   = document.getElementById('fName').value.trim();
+    const phone  = document.getElementById('fPhone').value.trim();
+    const date   = document.getElementById('fDate').value;
+    const people = document.getElementById('fPeople').value;
+    const note   = document.getElementById('fNote').value.trim();
+
+    if (!name || !phone || !date || !people) {
+      alert('Mohon lengkapi semua data wajib terlebih dahulu.');
+      return;
+    }
+
+    const msg = encodeURIComponent(
+      `Halo Warong Searah! Saya ingin reservasi meja.\n\n` +
+      `Nama: ${name}\nTelepon: ${phone}\nTanggal: ${date}\nJumlah Orang: ${people}${note ? '\nCatatan: ' + note : ''}`
+    );
+    window.open(`https://wa.me/6281234567890?text=${msg}`, '_blank');
+
+    document.getElementById('formSuccess').style.display = 'block';
+  }
+</script>
+</body>
+</html>
