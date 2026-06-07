@@ -795,12 +795,15 @@
       return;
     }
 
-    document.getElementById('formSuccess').style.display = 'block';
     showToast('success', 'Meja Berhasil Dibooking', `Meja ${table} sudah diamankan untuk ${name}.`);
-    document.getElementById('fName').value = '';
-    document.getElementById('fPhone').value = '';
-    document.getElementById('fDate').value = '';
-    document.getElementById('fPeople').value = '';
-    document.getElementById('fNote').value = '';
+
+    const successMessage = document.getElementById('formSuccess');
+    if (successMessage) successMessage.style.display = 'block';
+
+    ['fName', 'fPhone', 'fDate', 'fPeople', 'fTable', 'fNote'].forEach((id) => {
+      const field = document.getElementById(id);
+      if (field) field.value = '';
+    });
+
     await loadActiveTables();
   }
