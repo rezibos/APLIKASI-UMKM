@@ -219,7 +219,8 @@ const state = {
   transactions: [],
   cart: [],
   loading: false,
-  currentUser: null
+  currentUser: null,
+  transactionPage: 1
 };
 
 const formatter = new Intl.NumberFormat('id-ID', {
@@ -770,21 +771,21 @@ function renderKasir() {
   const cartTotal = state.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
 
   root.innerHTML = `
-    <div class="grid lg:grid-cols-3 gap-5">
-      <div class="lg:col-span-2 space-y-4">
-        <div class="card p-4">
-          <div class="flex flex-wrap items-center gap-3 justify-between mb-4">
+    <div class="kasir-layout grid lg:grid-cols-3 gap-5">
+      <div class="kasir-menu-column lg:col-span-2">
+        <div class="kasir-menu-card card p-4">
+          <div class="kasir-menu-head flex flex-wrap items-center gap-3 justify-between mb-4">
             <h3 class="font-bold text-lg text-primary-700">Menu Kasir</h3>
             <div class="flex flex-wrap gap-2">
               <input id="cashierSearch" class="input w-56" placeholder="Cari menu..." />
               <button class="btn btn-soft" id="goProduk">Tambah Barang</button>
             </div>
           </div>
-          <div id="kasirMenu" class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3"></div>
+          <div id="kasirMenu" class="kasir-menu-scroll grid sm:grid-cols-2 xl:grid-cols-3 gap-3"></div>
         </div>
       </div>
 
-      <div class="space-y-4">
+      <div class="kasir-cart-column space-y-4">
         <div class="card p-4">
           <h3 class="font-bold text-lg text-primary-700 mb-3">Keranjang</h3>
           <div id="cartWrap" class="space-y-2 max-h-[360px] overflow-auto"></div>
@@ -951,12 +952,15 @@ function renderProduk() {
   const root = document.getElementById('view-produk');
 
   root.innerHTML = `
-    <div class="card p-5">
-      <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
+    <div class="product-card card p-5">
+      <div class="product-head flex flex-wrap items-center justify-between mb-4 gap-2">
         <h3 class="font-bold text-lg text-primary-700">Data Produk</h3>
-        <button id="addProductBtn" class="btn btn-primary">Tambah Produk</button>
+        <div class="flex flex-wrap gap-2">
+          <input id="productSearch" class="input w-56" placeholder="Cari produk..." />
+          <button id="addProductBtn" class="btn btn-primary">Tambah Produk</button>
+        </div>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap product-table-scroll">
         <table class="admin-table">
           <thead>
             <tr>
@@ -968,21 +972,7 @@ function renderProduk() {
               <th>Aksi</th>
             </tr>
           </thead>
-          <tbody>
-            ${state.products.length ? state.products.map((p) => `
-              <tr>
-                <td><img src="${p.image || 'https://placehold.co/120x80?text=No+Image'}" class="w-16 h-11 rounded object-cover cursor-pointer hover:opacity-75 transition" alt="${p.name}" data-view-image="${p.image || 'https://placehold.co/120x80?text=No+Image'}" data-image-name="${p.name}" /></td>
-                <td>${p.name}</td>
-                <td>${categoryName(p.categoryId)}</td>
-                <td>${formatter.format(p.price)}</td>
-                <td>${p.stock}</td>
-                <td class="space-x-1">
-                  <button class="btn btn-soft" data-edit-product="${p.id}">Edit</button>
-                  <button class="btn btn-danger" data-delete-product="${p.id}">Hapus</button>
-                </td>
-              </tr>
-            `).join('') : '<tr><td colspan="6" style="text-align:center;padding:2.5rem 0;color:#94a3b8;font-size:0.9rem;">Belum ada produk di database.</td></tr>'}
-          </tbody>
+          <tbody id="productTableBody"></tbody>
         </table>
       </div>
       <dialog id="imageViewModal" class="backdrop:bg-black/50">
@@ -997,30 +987,61 @@ function renderProduk() {
     </div>
   `;
 
+  const productSearch = root.querySelector('#productSearch');
+  const productTableBody = root.querySelector('#productTableBody');
+
   root.querySelector('#addProductBtn').addEventListener('click', () => openProductDialog());
 
-  root.querySelectorAll('[data-view-image]').forEach((img) => {
-    img.addEventListener('click', () => {
-      const modal = root.querySelector('#imageViewModal');
-      root.querySelector('#imageViewImg').src = img.dataset.viewImage;
-      root.querySelector('#imageViewTitle').textContent = img.dataset.imageName;
-      modal.showModal();
+  function renderProductRows(keyword = '') {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    const filtered = state.products
+      .filter((p) => {
+        const name = String(p.name || '').toLowerCase();
+        const category = String(categoryName(p.categoryId) || '').toLowerCase();
+        return name.includes(normalizedKeyword) || category.includes(normalizedKeyword);
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'id'));
+
+    productTableBody.innerHTML = filtered.length ? filtered.map((p) => `
+      <tr>
+        <td><img src="${p.image || 'https://placehold.co/120x80?text=No+Image'}" class="w-16 h-11 rounded object-cover cursor-pointer hover:opacity-75 transition" alt="${p.name}" data-view-image="${p.image || 'https://placehold.co/120x80?text=No+Image'}" data-image-name="${p.name}" /></td>
+        <td>${p.name}</td>
+        <td>${categoryName(p.categoryId)}</td>
+        <td>${formatter.format(p.price)}</td>
+        <td>${p.stock}</td>
+        <td class="space-x-1">
+          <button class="btn btn-soft" data-edit-product="${p.id}">Edit</button>
+          <button class="btn btn-danger" data-delete-product="${p.id}">Hapus</button>
+        </td>
+      </tr>
+    `).join('') : `<tr><td colspan="6" style="text-align:center;padding:2.5rem 0;color:#94a3b8;font-size:0.9rem;">${normalizedKeyword ? 'Produk tidak ditemukan.' : 'Belum ada produk di database.'}</td></tr>`;
+
+    productTableBody.querySelectorAll('[data-view-image]').forEach((img) => {
+      img.addEventListener('click', () => {
+        const modal = root.querySelector('#imageViewModal');
+        root.querySelector('#imageViewImg').src = img.dataset.viewImage;
+        root.querySelector('#imageViewTitle').textContent = img.dataset.imageName;
+        modal.showModal();
+      });
     });
-  });
+
+    productTableBody.querySelectorAll('[data-edit-product]').forEach((btn) => {
+      btn.addEventListener('click', () => openProductDialog(btn.dataset.editProduct));
+    });
+
+    productTableBody.querySelectorAll('[data-delete-product]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        await deleteProduct(btn.dataset.deleteProduct);
+      });
+    });
+  }
 
   root.querySelector('#closeImageView').addEventListener('click', () => {
     root.querySelector('#imageViewModal').close();
   });
 
-  root.querySelectorAll('[data-edit-product]').forEach((btn) => {
-    btn.addEventListener('click', () => openProductDialog(btn.dataset.editProduct));
-  });
-
-  root.querySelectorAll('[data-delete-product]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      await deleteProduct(btn.dataset.deleteProduct);
-    });
-  });
+  productSearch.addEventListener('input', () => renderProductRows(productSearch.value));
+  renderProductRows();
 }
 
 function openProductDialog(productId = null) {
@@ -1801,6 +1822,24 @@ function renderMeja() {
 function renderTransaksi() {
   const root = document.getElementById('view-transaksi');
   const rows = [...state.transactions];
+  const perPage = 15;
+  const totalPages = Math.max(1, Math.ceil(rows.length / perPage));
+
+  if (state.transactionPage > totalPages) state.transactionPage = totalPages;
+  if (state.transactionPage < 1) state.transactionPage = 1;
+
+  const startIndex = (state.transactionPage - 1) * perPage;
+  const pageRows = rows.slice(startIndex, startIndex + perPage);
+  const pageButtons = Array.from({ length: totalPages }, (_, index) => index + 1)
+    .map((page) => `
+      <button
+        type="button"
+        class="pagination-btn ${page === state.transactionPage ? 'active' : ''}"
+        data-transaksi-page="${page}"
+        aria-label="Halaman ${page}"
+      >${page}</button>
+    `)
+    .join('');
 
   root.innerHTML = `
     <div class="card p-5">
@@ -1821,7 +1860,7 @@ function renderTransaksi() {
             </tr>
           </thead>
           <tbody>
-            ${rows.length ? rows.map((trx) => `
+            ${pageRows.length ? pageRows.map((trx) => `
               <tr>
                 <td>${trx.code}</td>
                 <td>${formatDateTime(trx.createdAt)}</td>
@@ -1840,6 +1879,25 @@ function renderTransaksi() {
           </tbody>
         </table>
       </div>
+      ${rows.length > perPage ? `
+        <div class="pagination-bar">
+          <button
+            type="button"
+            class="pagination-btn"
+            data-transaksi-page="${state.transactionPage - 1}"
+            ${state.transactionPage === 1 ? 'disabled' : ''}
+            aria-label="Halaman sebelumnya"
+          >‹</button>
+          <div class="pagination-pages">${pageButtons}</div>
+          <button
+            type="button"
+            class="pagination-btn"
+            data-transaksi-page="${state.transactionPage + 1}"
+            ${state.transactionPage === totalPages ? 'disabled' : ''}
+            aria-label="Halaman berikutnya"
+          >›</button>
+        </div>
+      ` : ''}
     </div>
   `;
 
@@ -1849,6 +1907,15 @@ function renderTransaksi() {
 
   root.querySelectorAll('[data-print-trx]').forEach((btn) => {
     btn.addEventListener('click', () => printReceipt(btn.dataset.printTrx));
+  });
+
+  root.querySelectorAll('[data-transaksi-page]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const nextPage = Number(btn.dataset.transaksiPage || 1);
+      if (!nextPage || nextPage === state.transactionPage) return;
+      state.transactionPage = Math.min(Math.max(nextPage, 1), totalPages);
+      renderTransaksi();
+    });
   });
 
 }
@@ -1877,7 +1944,6 @@ function renderPesananMasuk() {
         <table class="admin-table">
           <thead>
             <tr>
-              <th>Kode</th>
               <th>Waktu</th>
               <th>Pemesan</th>
               <th>Pesanan</th>
@@ -1890,7 +1956,6 @@ function renderPesananMasuk() {
           <tbody>
             ${orders.length ? orders.map((trx) => `
               <tr>
-                <td>${trx.code}</td>
                 <td>${formatDateTime(trx.createdAt)}</td>
                 <td>${trx.customerName || '-'}</td>
                 <td style="white-space:normal;min-width:240px;">${orderItemsSummary(trx)}</td>
@@ -1902,7 +1967,7 @@ function renderPesananMasuk() {
                   <button class="btn btn-primary" data-print-trx="${trx.id}">Cetak</button>
                 </td>
               </tr>
-            `).join('') : '<tr><td colspan="8" style="text-align:center;padding:2.5rem 0;color:#94a3b8;font-size:0.9rem;">Belum ada pesanan dari landing page.</td></tr>'}
+            `).join('') : '<tr><td colspan="7" style="text-align:center;padding:2.5rem 0;color:#94a3b8;font-size:0.9rem;">Belum ada pesanan dari landing page.</td></tr>'}
           </tbody>
         </table>
       </div>

@@ -115,6 +115,9 @@
   let testiStartX = 0;
   let testiOffset = 0;
   let testiStartOffset = 0;
+  let testiLastFrameTime = 0;
+  let testiPaused = false;
+  const testiSpeed = 42;
 
   function setTestiOffset(value) {
     const halfWidth = testiTrack ? testiTrack.scrollWidth / 2 : 0;
@@ -124,22 +127,41 @@
     testiTrack.style.transform = `translateX(${-testiOffset}px)`;
   }
 
-  function syncTestiOffsetFromPosition() {
-    if (!testiTrack) return;
-    const transform = window.getComputedStyle(testiTrack).transform;
-    if (!transform || transform === 'none') return;
+  function animateTestimonials(time) {
+    if (!testiLastFrameTime) {
+      testiLastFrameTime = time;
+    }
 
-    const matrix = new DOMMatrixReadOnly(transform);
-    setTestiOffset(-matrix.m41);
+    const elapsed = time - testiLastFrameTime;
+    testiLastFrameTime = time;
+
+    if (!testiDragging && !testiPaused) {
+      setTestiOffset(testiOffset + (testiSpeed * elapsed / 1000));
+    }
+
+    requestAnimationFrame(animateTestimonials);
   }
 
   if (testiWrap && testiTrack) {
+    const testiCanHover = window.matchMedia('(hover: hover)').matches;
+
+    requestAnimationFrame(animateTestimonials);
+
+    if (testiCanHover) {
+      testiWrap.addEventListener('mouseenter', () => {
+        testiPaused = true;
+      });
+
+      testiWrap.addEventListener('mouseleave', () => {
+        testiPaused = false;
+      });
+    }
+
     testiWrap.addEventListener('pointerdown', (event) => {
       testiDragging = true;
-      syncTestiOffsetFromPosition();
       testiStartX = event.clientX;
       testiStartOffset = testiOffset;
-      testiWrap.classList.add('is-dragging', 'is-manual');
+      testiWrap.classList.add('is-dragging');
       testiWrap.setPointerCapture(event.pointerId);
     });
 

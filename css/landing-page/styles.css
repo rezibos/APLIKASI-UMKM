@@ -536,21 +536,10 @@
     .testi-track {
       display: flex; gap: 22px;
       width: max-content;
-      animation: marquee 38s linear infinite;
       will-change: transform;
-    }
-    .testi-track-wrap:hover .testi-track { animation-play-state: paused; }
-    .testi-track-wrap.is-dragging .testi-track,
-    .testi-track-wrap.is-manual .testi-track {
-      animation: none;
     }
     .testi-track-wrap.is-dragging .testi-card {
       pointer-events: none;
-    }
-
-    @keyframes marquee {
-      0%   { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
     }
 
     .testi-card {
