@@ -5,8 +5,11 @@ window.APP_CONFIG = {
 		dashboard: 'assets/icons/dashboard.png',
 		produk: 'assets/icons/produk.png',
 		kategori: 'assets/icons/kategori.png',
+		meja: 'assets/icons/table.png',
 		kasir: 'assets/icons/kasir.png',
+		pesanan: 'assets/icons/order.png',
 		transaksi: 'assets/icons/transaksi.png',
-		laporan: 'assets/icons/laporan.png'
+		laporan: 'assets/icons/laporan.png',
+		register: 'assets/icons/account.png'
 	}
 };

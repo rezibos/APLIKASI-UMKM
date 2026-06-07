@@ -9,6 +9,12 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   font-family: "Poppins", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   background:
@@ -17,10 +23,67 @@ body {
     #f6f1ea;
 }
 
+#layoutRoot {
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+main {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+main > header,
+#dbAlert {
+  flex-shrink: 0;
+}
+
+.view-section {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.35rem;
+  padding-bottom: 1.5rem;
+  scrollbar-gutter: stable;
+}
+
+.view-section.hidden {
+  display: none;
+}
+
+.view-section::-webkit-scrollbar,
+#sidebarNav::-webkit-scrollbar {
+  width: 0.55rem;
+}
+
+.view-section::-webkit-scrollbar-track,
+#sidebarNav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.view-section::-webkit-scrollbar-thumb,
+#sidebarNav::-webkit-scrollbar-thumb {
+  background: #e6cbb2;
+  border-radius: 999px;
+}
+
 .sidebar {
   width: 288px;
   transition: width 180ms ease;
   overflow: hidden;
+  height: 100vh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#sidebarNav {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.2rem;
 }
 
 .sidebar.collapsed {
@@ -182,6 +245,53 @@ body {
 .textarea:focus {
   border-color: #a15f34;
   box-shadow: 0 0 0 3px rgba(161, 95, 52, 0.2);
+}
+
+.password-field {
+  position: relative;
+}
+
+.password-field .input {
+  padding-right: 3rem;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.45rem;
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.65rem;
+  color: #7c4521;
+  background: transparent;
+  cursor: pointer;
+  transition: 160ms ease;
+  transform: translateY(-50%);
+}
+
+.password-toggle:hover {
+  background: #f6eadf;
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid rgba(161, 95, 52, 0.35);
+  outline-offset: 2px;
+}
+
+.password-toggle .icon-eye-off {
+  display: none;
+}
+
+.password-toggle.is-visible .icon-eye {
+  display: none;
+}
+
+.password-toggle.is-visible .icon-eye-off {
+  display: block;
 }
 
 .btn {

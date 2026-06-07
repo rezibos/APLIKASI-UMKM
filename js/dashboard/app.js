@@ -12,6 +12,23 @@ const loadSweetAlert = () => {
 
 loadSweetAlert();
 
+const assetUrl = (path) => new URL(path, window.location.href).href;
+
+document.addEventListener('click', (event) => {
+  const toggle = event.target.closest('[data-password-toggle]');
+  if (!toggle) return;
+
+  const field = toggle.closest('.password-field');
+  const input = field?.querySelector('[data-password-input]');
+  if (!input) return;
+
+  const showPassword = input.type === 'password';
+  input.type = showPassword ? 'text' : 'password';
+  toggle.classList.toggle('is-visible', showPassword);
+  toggle.setAttribute('aria-pressed', String(showPassword));
+  toggle.setAttribute('aria-label', showPassword ? 'Sembunyikan password' : 'Tampilkan password');
+});
+
 // Helper notifikasi functions
 const notify = {
   success: (message, title = 'Berhasil') => {
@@ -51,34 +68,148 @@ const notify = {
   }
 };
 
+// Auth Functions
+async function checkSession() {
+  const sessionData = localStorage.getItem('kopisearah_session');
+  if (!sessionData) return null;
+
+  try {
+    const session = JSON.parse(sessionData);
+    const expiry = session.expiry;
+    const now = new Date().getTime();
+
+    if (now > expiry) {
+      localStorage.removeItem('kopisearah_session');
+      return null;
+    }
+
+    return session;
+  } catch (e) {
+    localStorage.removeItem('kopisearah_session');
+    return null;
+  }
+}
+
+async function handleLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+
+  if (!email || !password) {
+    notify.error('Email dan password harus diisi.');
+    return;
+  }
+
+  try {
+    const { data, error } = await db
+      .from('admin_users')
+      .select('*')
+      .eq('email', email.toLowerCase())
+      .eq('password', password)
+      .single();
+
+    if (error || !data) {
+      notify.error('Email atau password salah.');
+      return;
+    }
+
+    const session = {
+      userId: data.id,
+      name: data.name,
+      email: data.email,
+      role: data.role || 'kasir',
+      expiry: new Date().getTime() + (24 * 60 * 60 * 1000) // 24 jam
+    };
+
+    localStorage.setItem('kopisearah_session', JSON.stringify(session));
+    state.currentUser = session;
+    await startAdminApp();
+    const roleLabel = session.role === 'super_admin' ? 'Super Admin' : (session.role === 'koki' ? 'Koki' : 'Kasir');
+    notify.success(`Selamat datang, ${data.name}! (${roleLabel})`, 'Login Berhasil');
+  } catch (err) {
+    notify.error('Terjadi kesalahan saat login.');
+  }
+}
+
+// Cek apakah user adalah Super Admin
+function isSuperAdmin() {
+  return state.currentUser?.role === 'super_admin';
+}
+
+async function handleLogout() {
+  const confirmed = await notify.confirm('Apakah Anda yakin ingin keluar?', 'Logout');
+  if (!confirmed) return;
+
+  localStorage.removeItem('kopisearah_session');
+  state.currentUser = null;
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+  showLoginPage();
+  notify.success('Berhasil logout.');
+}
+
+function showLoginPage() {
+  document.getElementById('loginPage').classList.remove('hidden');
+  document.getElementById('layoutRoot').classList.add('hidden');
+}
+
+function showDashboard() {
+  document.getElementById('loginPage').classList.add('hidden');
+  document.getElementById('layoutRoot').classList.remove('hidden');
+  document.getElementById('userName').textContent = state.currentUser?.name || 'Admin';
+
+  // Render nav setelah user login supaya role sudah ter-set
+  renderNav();
+}
+
 const APP_CONFIG = window.APP_CONFIG || {};
 const ICONS = APP_CONFIG.icons || {};
 
-const NAV_GROUPS = [
-  {
-    title: 'Utama',
-    items: [
-      { id: 'dashboard', label: 'Dashboard', subtitle: 'Ringkasan operasional hari ini' }
-    ]
-  },
-  {
-    title: 'Master Data',
-    items: [
+function getNavGroups() {
+  const role = state.currentUser?.role || 'kasir';
+
+  // Common menu untuk semua role
+  const commonItems = [
+    { id: 'dashboard', label: 'Dashboard', subtitle: 'Ringkasan operasional hari ini' }
+  ];
+
+  // Menu per role
+  const roleMenus = {
+    super_admin: [
       { id: 'produk', label: 'Produk', subtitle: 'Kelola data produk (CRUD)' },
       { id: 'kategori', label: 'Kategori', subtitle: 'Kelola kategori produk (CRUD)' },
-      { id: 'kasir', label: 'Kasir', subtitle: 'Transaksi cepat + cetak struk' }
-    ]
-  },
-  {
-    title: 'Aktivitas',
-    items: [
+      { id: 'meja', label: 'Meja', subtitle: 'Status meja dan QR menu' },
+      { id: 'kasir', label: 'Kasir', subtitle: 'Transaksi cepat + cetak struk' },
+      { id: 'pesanan', label: 'Pesanan Masuk', subtitle: 'Order pelanggan dari landing page' },
       { id: 'transaksi', label: 'Transaksi', subtitle: 'Riwayat seluruh transaksi' },
-      { id: 'laporan', label: 'Laporan', subtitle: 'Analisis penjualan dan ringkasan' }
+      { id: 'laporan', label: 'Laporan', subtitle: 'Analisis penjualan dan ringkasan' },
+      { id: 'register', label: 'Kelola Akun', subtitle: 'Tambah/hapus admin' }
+    ],
+    kasir: [
+      { id: 'kasir', label: 'Kasir', subtitle: 'Transaksi cepat + cetak struk' },
+      { id: 'pesanan', label: 'Pesanan Masuk', subtitle: 'Order pelanggan dari landing page' },
+      { id: 'transaksi', label: 'Transaksi', subtitle: 'Riwayat transaksi hari ini' }
+    ],
+    koki: [
+      { id: 'pesanan', label: 'Pesanan Masuk', subtitle: 'Order pelanggan dari landing page' }
     ]
-  }
-];
+  };
 
-const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
+  return [
+    {
+      title: 'Utama',
+      items: commonItems
+    },
+    {
+      title: role === 'super_admin' ? 'Menu Super Admin' : (role === 'koki' ? 'Menu Koki' : 'Menu Kasir'),
+      items: roleMenus[role] || roleMenus.kasir
+    }
+  ];
+}
+
+// NAV_GROUPS akan di-set saat login melalui getNavGroups()
+let NAV_GROUPS = [];
 
 const state = {
   currentView: 'dashboard',
@@ -87,7 +218,8 @@ const state = {
   categories: [],
   transactions: [],
   cart: [],
-  loading: false
+  loading: false,
+  currentUser: null
 };
 
 const formatter = new Intl.NumberFormat('id-ID', {
@@ -97,6 +229,8 @@ const formatter = new Intl.NumberFormat('id-ID', {
 });
 
 let db = null;
+let globalEventsAttached = false;
+let autoRefreshTimer = null;
 
 function uidCode(prefix = 'TRX') {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -144,8 +278,73 @@ function transactionStatusBadge(status) {
   return `<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${meta.className}">${meta.label}</span>`;
 }
 
+function transactionStatusSelect(trx) {
+  const statuses = [
+    ['pending', 'Menunggu'],
+    ['processing', 'Diproses'],
+    ['cancelled', 'Dibatalkan']
+  ];
+
+  return `
+    <select class="select min-w-[135px] text-sm" data-status-trx="${trx.id}">
+      ${statuses.map(([value, label]) => `
+        <option value="${value}" ${trx.status === value ? 'selected' : ''}>${label}</option>
+      `).join('')}
+    </select>
+  `;
+}
+
 function completedTransactions() {
   return state.transactions.filter((trx) => String(trx.status || 'completed').toLowerCase() === 'completed');
+}
+
+function incomingOrders() {
+  return state.transactions.filter((trx) => (
+    String(trx.code || '').startsWith('ORD-') &&
+    ['pending', 'processing'].includes(String(trx.status || '').toLowerCase())
+  ));
+}
+
+function isLandingOrder(trx) {
+  return String(trx?.code || '').startsWith('ORD-');
+}
+
+function transactionIsPaid(trx) {
+  return Number(trx?.payment || 0) > 0 && String(trx?.status || '').toLowerCase() === 'completed';
+}
+
+function orderItemsSummary(trx) {
+  return trx.items.length
+    ? trx.items.map((item) => `${item.name} x${item.qty}`).join(', ')
+    : '-';
+}
+
+function tableNumberFromNotes(notes) {
+  const match = String(notes || '').match(/Meja:\s*(\d+)/i);
+  if (!match) return '';
+
+  const table = Number(match[1]);
+  return Number.isInteger(table) && table >= 1 && table <= 20 ? String(table) : '';
+}
+
+function activeTableTransactions(tableNumber) {
+  return state.transactions.filter((trx) => (
+    ['pending', 'processing'].includes(String(trx.status || '').toLowerCase()) &&
+    tableNumberFromNotes(trx.notes) === String(tableNumber)
+  ));
+}
+
+function tableOrderLabel(trx) {
+  if (String(trx.code || '').startsWith('RSV-')) return 'Reservasi meja';
+  if (trx.items.length) return orderItemsSummary(trx);
+  return 'Pesanan meja';
+}
+
+function tableMenuUrl(tableNumber) {
+  const url = new URL('landing-page.html', window.location.href);
+  url.searchParams.set('table', tableNumber);
+  url.hash = 'menu';
+  return url.toString();
 }
 
 function setDbAlert(message, danger = false) {
@@ -177,7 +376,7 @@ function ensureDb() {
   }
 
   if (!APP_CONFIG.supabaseUrl || !APP_CONFIG.supabaseAnonKey) {
-    setDbAlert('Isi dulu file config.js (supabaseUrl dan supabaseAnonKey), lalu refresh.', true);
+    setDbAlert('Isi dulu file js/config.js (supabaseUrl dan supabaseAnonKey), lalu refresh.', true);
     return false;
   }
 
@@ -254,7 +453,8 @@ function getNavIcon(id) {
 }
 
 function renderNav() {
-  const content = NAV_GROUPS
+  const groups = getNavGroups();
+  const content = groups
     .map((group, index) => {
       const itemsHtml = group.items
         .map((item) => `
@@ -288,9 +488,14 @@ function renderNav() {
 function switchView(viewId) {
   state.currentView = viewId;
   document.querySelectorAll('.view-section').forEach((section) => section.classList.add('hidden'));
-  document.getElementById(`view-${viewId}`).classList.remove('hidden');
+  const targetSection = document.getElementById(`view-${viewId}`);
+  if (targetSection) {
+    targetSection.classList.remove('hidden');
+  }
 
-  const active = NAV_ITEMS.find((item) => item.id === viewId);
+  const groups = getNavGroups();
+  const allItems = groups.flatMap((g) => g.items);
+  const active = allItems.find((item) => item.id === viewId);
   document.getElementById('pageTitle').textContent = active?.label || 'Kopi Searah';
   document.getElementById('pageSubtitle').textContent = active?.subtitle || '';
 
@@ -1203,6 +1408,396 @@ async function deleteCategory(categoryId) {
   await refreshDataAndView();
 }
 
+async function updateTransactionStatus(trxId, nextStatus) {
+  const trx = state.transactions.find((t) => t.id === String(trxId));
+  if (!trx) return;
+
+  const currentStatus = String(trx.status || 'completed').toLowerCase();
+  if (currentStatus === nextStatus) return;
+
+  if (nextStatus === 'completed' && isLandingOrder(trx) && !transactionIsPaid(trx)) {
+    notify.info('Isi pembayaran cash terlebih dahulu dari detail pesanan.', 'Pembayaran Diperlukan');
+    renderCurrentView();
+    openTrxDetail(trx.id);
+    return;
+  }
+
+  if (nextStatus === 'cancelled' && currentStatus !== 'cancelled') {
+    const confirmed = await notify.confirm('Batalkan pesanan ini? Stok item akan dikembalikan.');
+    if (!confirmed) {
+      renderCurrentView();
+      return;
+    }
+
+    for (const item of trx.items) {
+      const product = state.products.find((p) => p.id === item.productId);
+      if (!product) continue;
+
+      const stockRes = await db
+        .from('products')
+        .update({ stock: Number(product.stock || 0) + Number(item.qty || 0) })
+        .eq('id', item.productId);
+
+      if (stockRes.error) {
+        notify.error(`Gagal mengembalikan stok ${item.name}: ${stockRes.error.message}`);
+        await refreshDataAndView();
+        return;
+      }
+    }
+  }
+
+  if (currentStatus === 'cancelled' && nextStatus !== 'cancelled') {
+    const confirmed = await notify.confirm('Aktifkan lagi pesanan ini? Stok item akan dikurangi kembali.');
+    if (!confirmed) {
+      renderCurrentView();
+      return;
+    }
+
+    for (const item of trx.items) {
+      const product = state.products.find((p) => p.id === item.productId);
+      if (!product || Number(product.stock || 0) < Number(item.qty || 0)) {
+        notify.error(`Stock ${item.name} tidak cukup untuk mengaktifkan pesanan ini.`);
+        await refreshDataAndView();
+        return;
+      }
+
+      const stockRes = await db
+        .from('products')
+        .update({ stock: Number(product.stock || 0) - Number(item.qty || 0) })
+        .eq('id', item.productId);
+
+      if (stockRes.error) {
+        notify.error(`Gagal mengurangi stok ${item.name}: ${stockRes.error.message}`);
+        await refreshDataAndView();
+        return;
+      }
+    }
+  }
+
+  const payload = {
+    status: nextStatus,
+    processed_at: nextStatus === 'completed' ? new Date().toISOString() : trx.processedAt
+  };
+
+  if (nextStatus !== 'completed') {
+    payload.processed_at = null;
+  }
+
+  const res = await db.from('transactions').update(payload).eq('id', trx.id);
+  if (res.error) {
+    notify.error(`Gagal mengubah status: ${res.error.message}`);
+    return;
+  }
+
+  notify.success(`Status pesanan ${trx.code} diperbarui.`);
+  await refreshDataAndView();
+}
+
+async function payLandingOrder(trxId, payment) {
+  const trx = state.transactions.find((t) => t.id === String(trxId));
+  if (!trx) return;
+
+  const paidAmount = Number(payment || 0);
+  if (!paidAmount || paidAmount <= 0) {
+    notify.warning('Uang bayar tidak boleh kosong atau 0.');
+    return;
+  }
+
+  if (paidAmount < Number(trx.total || 0)) {
+    notify.error(`Uang kurang ${formatter.format(Number(trx.total || 0) - paidAmount)}.`);
+    return;
+  }
+
+  const res = await db
+    .from('transactions')
+    .update({
+      payment: paidAmount,
+      change: paidAmount - Number(trx.total || 0),
+      status: 'completed',
+      processed_at: new Date().toISOString()
+    })
+    .eq('id', trx.id);
+
+  if (res.error) {
+    notify.error(`Gagal menyimpan pembayaran: ${res.error.message}`);
+    return;
+  }
+
+  notify.success(`Kembalian: ${formatter.format(paidAmount - Number(trx.total || 0))}`, 'Pembayaran Berhasil');
+  document.getElementById('trxDetailDialog').close();
+  await refreshDataAndView();
+}
+
+async function finishTable(tableNumber) {
+  const active = activeTableTransactions(tableNumber);
+  if (!active.length) {
+    notify.info(`Meja ${tableNumber} sudah kosong.`);
+    return;
+  }
+
+  const unpaidOrder = active.find((trx) => isLandingOrder(trx) && Number(trx.total || 0) > 0 && !transactionIsPaid(trx));
+  if (unpaidOrder) {
+    notify.warning(`Meja ${tableNumber} masih punya pesanan belum dibayar. Selesaikan pembayaran dulu.`);
+    openTrxDetail(unpaidOrder.id);
+    return;
+  }
+
+  const confirmed = await notify.confirm(`Selesaikan meja ${tableNumber}? Meja akan bisa dibooking lagi.`);
+  if (!confirmed) return;
+
+  for (const trx of active) {
+    const res = await db
+      .from('transactions')
+      .update({
+        status: 'completed',
+        processed_at: new Date().toISOString()
+      })
+      .eq('id', trx.id);
+
+    if (res.error) {
+      notify.error(`Gagal menyelesaikan ${trx.code}: ${res.error.message}`);
+      return;
+    }
+  }
+
+  notify.success(`Meja ${tableNumber} sudah selesai dan tersedia lagi.`);
+  await refreshDataAndView();
+}
+
+function openQrPreview(qrSrc, menuUrl, tableNumber) {
+  const dialog = document.getElementById('qrDialog');
+  let zoom = 1;
+
+  dialog.innerHTML = `
+    <div class="p-5 space-y-4">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-400 font-bold">QR Menu</p>
+          <h3 class="font-black text-xl text-primary-700">Meja ${tableNumber}</h3>
+        </div>
+        <button id="closeQrDialog" class="text-slate-500">Tutup</button>
+      </div>
+
+      <div class="rounded-2xl bg-white border border-amber-100 p-4 overflow-auto max-h-[62vh] flex justify-center">
+        <img id="qrPreviewImg" src="${qrSrc}" alt="QR menu meja ${tableNumber}" class="object-contain transition-transform duration-150" style="width:260px;height:260px;transform:scale(1);" />
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex gap-2">
+          <button class="btn btn-soft" id="qrZoomOut" type="button">-</button>
+          <button class="btn btn-soft" id="qrZoomReset" type="button">Reset</button>
+          <button class="btn btn-soft" id="qrZoomIn" type="button">+</button>
+        </div>
+        <button class="btn btn-primary" id="openQrMenu" type="button">Buka Menu</button>
+      </div>
+    </div>
+  `;
+
+  function applyZoom() {
+    dialog.querySelector('#qrPreviewImg').style.transform = `scale(${zoom})`;
+  }
+
+  dialog.showModal();
+  dialog.querySelector('#closeQrDialog').addEventListener('click', () => dialog.close());
+  dialog.querySelector('#qrZoomOut').addEventListener('click', () => {
+    zoom = Math.max(0.7, Number((zoom - 0.2).toFixed(1)));
+    applyZoom();
+  });
+  dialog.querySelector('#qrZoomReset').addEventListener('click', () => {
+    zoom = 1;
+    applyZoom();
+  });
+  dialog.querySelector('#qrZoomIn').addEventListener('click', () => {
+    zoom = Math.min(2.4, Number((zoom + 0.2).toFixed(1)));
+    applyZoom();
+  });
+  dialog.querySelector('#openQrMenu').addEventListener('click', () => {
+    window.open(menuUrl, '_blank', 'noopener');
+  });
+}
+
+function showTableOrdersDetail(tableNumber, orders) {
+  const dialog = document.getElementById('trxDetailDialog');
+  const totalAmount = orders.reduce((sum, order) => sum + order.total, 0);
+  const totalItems = orders.reduce((sum, order) => sum + order.items.reduce((s, i) => s + i.qty, 0), 0);
+  const allItems = orders.flatMap(order => order.items.map(item => ({
+    ...item,
+    orderCode: order.code,
+    orderTime: order.createdAt
+  })));
+
+  dialog.innerHTML = `
+    <div class="p-5 space-y-4">
+      <div class="flex justify-between items-center">
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-400 font-bold">Detail Pesanan Meja</p>
+          <h3 class="font-black text-2xl text-primary-700">Meja ${tableNumber}</h3>
+        </div>
+        <button id="closeTableOrders" class="text-slate-500 hover:text-slate-700">Tutup</button>
+      </div>
+
+      <div class="grid sm:grid-cols-3 gap-3">
+        <div class="bg-amber-50 rounded-xl p-3 border border-amber-100">
+          <p class="text-xs text-slate-500 mb-1">Total Pesanan</p>
+          <p class="text-lg font-bold text-amber-700">${orders.length} order</p>
+        </div>
+        <div class="bg-sky-50 rounded-xl p-3 border border-sky-100">
+          <p class="text-xs text-slate-500 mb-1">Total Item</p>
+          <p class="text-lg font-bold text-sky-700">${totalItems} item</p>
+        </div>
+        <div class="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+          <p class="text-xs text-slate-500 mb-1">Total Harga</p>
+          <p class="text-lg font-bold text-emerald-700">${formatter.format(totalAmount)}</p>
+        </div>
+      </div>
+
+      <div class="max-h-[400px] overflow-auto space-y-4 pr-1">
+        ${orders.map(order => {
+          const orderTotal = order.items.reduce((s, i) => s + (i.price * i.qty), 0);
+          return `
+            <div class="border border-amber-100 rounded-xl bg-white">
+              <div class="flex items-center justify-between gap-2 px-4 py-3 bg-amber-50 border-b border-amber-100">
+                <div>
+                  <p class="font-bold text-sm text-primary-700">${order.code}</p>
+                  <p class="text-xs text-slate-500">${formatDateTime(order.createdAt)}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  ${transactionStatusBadge(order.status)}
+                </div>
+              </div>
+              <div class="p-3 space-y-2">
+                ${order.items.map(item => {
+                  const product = state.products.find(p => p.id === String(item.productId));
+                  const imgSrc = product?.image || 'https://placehold.co/80x60?text=No+Image';
+                  return `
+                    <div class="flex items-center gap-3 rounded-lg bg-stone-50 border border-amber-50 p-2">
+                      <img src="${imgSrc}" alt="${item.name}" class="w-16 h-16 rounded-lg object-cover flex-shrink-0 border border-amber-100" />
+                      <div class="flex-1 min-w-0">
+                        <p class="font-semibold text-sm text-slate-800 truncate">${item.name}</p>
+                        <p class="text-xs text-slate-500">${formatter.format(item.price)} x ${item.qty}</p>
+                      </div>
+                      <p class="font-bold text-sm text-primary-700 flex-shrink-0">${formatter.format(item.price * item.qty)}</p>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+              <div class="px-4 py-2 border-t border-amber-100 flex justify-end">
+                <p class="text-sm text-slate-600">Subtotal: <strong class="text-primary-700">${formatter.format(orderTotal)}</strong></p>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <div class="pt-3 border-t border-amber-100">
+        <div class="flex justify-between gap-4">
+          <button class="btn btn-soft" id="refreshTableOrders">Refresh</button>
+          <a href="landing-page.html?table=${tableNumber}#menu" target="_blank" class="btn btn-primary text-center">Tambah Pesanan</a>
+        </div>
+      </div>
+    </div>
+  `;
+
+  dialog.showModal();
+  dialog.querySelector('#closeTableOrders').addEventListener('click', () => dialog.close());
+  dialog.querySelector('#refreshTableOrders').addEventListener('click', () => {
+    dialog.close();
+    refreshDataAndView().then(() => {
+      const active = activeTableTransactions(tableNumber);
+      const orderTransactions = active.filter((trx) => String(trx.code || '').startsWith('ORD-'));
+      if (orderTransactions.length > 0) {
+        showTableOrdersDetail(tableNumber, orderTransactions);
+      }
+    });
+  });
+}
+
+function renderMeja() {
+  const root = document.getElementById('view-meja');
+  const tables = Array.from({ length: 20 }, (_, index) => String(index + 1));
+
+  root.innerHTML = `
+    <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      ${metricCard('Total Meja', 20, 'text-primary-700')}
+      ${metricCard('Meja Dipakai', tables.filter((table) => activeTableTransactions(table).length).length, 'text-amber-700')}
+      ${metricCard('Meja Kosong', tables.filter((table) => !activeTableTransactions(table).length).length, 'text-emerald-700')}
+      ${metricCard('QR Menu', 'Aktif', 'text-sky-700')}
+    </div>
+
+    <div class="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+      ${tables.map((table) => {
+        const active = activeTableTransactions(table);
+        const occupied = active.length > 0;
+        const orderTransactions = active.filter((trx) => String(trx.code || '').startsWith('ORD-'));
+        const hasOrder = orderTransactions.length > 0;
+        const hasBooking = active.some((trx) => String(trx.code || '').startsWith('RSV-'));
+        const statusLabel = hasOrder ? 'Dipakai' : (hasBooking ? 'Booking' : 'Kosong');
+        const statusClass = hasOrder
+          ? 'bg-amber-100 text-amber-800'
+          : (hasBooking ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-700');
+        const url = tableMenuUrl(table);
+        const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`;
+        return `
+          <article class="card p-4 space-y-3">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-xs uppercase tracking-wide text-slate-400 font-bold">Meja</p>
+                <h3 class="text-3xl font-black text-primary-700">${table}</h3>
+              </div>
+              <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${statusClass}">
+                ${statusLabel}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              class="rounded-xl border border-amber-100 bg-white p-3 flex justify-center w-full hover:bg-amber-50 transition cursor-zoom-in"
+              data-qr-preview="${qrSrc}"
+              data-qr-url="${url}"
+              data-qr-table="${table}"
+              title="Klik untuk preview QR. Ctrl+Click untuk buka menu meja."
+            >
+              <img src="${qrSrc}" alt="QR menu meja ${table}" class="w-36 h-36 object-contain pointer-events-none" />
+            </button>
+
+            <button class="btn ${occupied ? 'btn-primary' : 'btn-soft'} w-full" data-finish-table="${table}" ${occupied ? '' : 'disabled'}>
+              Meja Selesai
+            </button>
+          </article>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  root.querySelectorAll('[data-finish-table]').forEach((button) => {
+    button.addEventListener('click', () => finishTable(button.dataset.finishTable));
+  });
+
+  root.querySelectorAll('[data-qr-preview]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      if (event.ctrlKey || event.metaKey) {
+        const table = button.dataset.qrTable;
+        const active = activeTableTransactions(table);
+        const orderTransactions = active.filter((trx) => String(trx.code || '').startsWith('ORD-'));
+        const hasOrder = orderTransactions.length > 0;
+        const hasBooking = active.some((trx) => String(trx.code || '').startsWith('RSV-'));
+
+        // Jika ada pesanan (ORDER-), tampilkan dialog detail pesanan
+        if (hasOrder) {
+          showTableOrdersDetail(table, orderTransactions);
+          return;
+        }
+
+        // Untuk booking atau meja kosong, buka landing page pemesanan
+        window.open(button.dataset.qrUrl, '_blank', 'noopener');
+        return;
+      }
+
+      openQrPreview(button.dataset.qrPreview, button.dataset.qrUrl, button.dataset.qrTable);
+    });
+  });
+}
+
 function renderTransaksi() {
   const root = document.getElementById('view-transaksi');
   const rows = [...state.transactions];
@@ -1216,6 +1811,7 @@ function renderTransaksi() {
             <tr>
               <th>Kode</th>
               <th>Tanggal</th>
+              <th>Pemesan</th>
               <th>Status</th>
               <th>Total Item</th>
               <th>Total Bayar</th>
@@ -1229,6 +1825,7 @@ function renderTransaksi() {
               <tr>
                 <td>${trx.code}</td>
                 <td>${formatDateTime(trx.createdAt)}</td>
+                <td>${trx.customerName || 'Kasir'}</td>
                 <td>${transactionStatusBadge(trx.status)}</td>
                 <td>${trx.items.reduce((sum, i) => sum + i.qty, 0)}</td>
                 <td>${formatter.format(trx.total)}</td>
@@ -1239,7 +1836,7 @@ function renderTransaksi() {
                   <button class="btn btn-primary" data-print-trx="${trx.id}">Cetak</button>
                 </td>
               </tr>
-            `).join('') : '<tr><td colspan="8" style="text-align:center;padding:2.5rem 0;color:#94a3b8;font-size:0.9rem;">Belum ada transaksi di database.</td></tr>'}
+            `).join('') : '<tr><td colspan="9" style="text-align:center;padding:2.5rem 0;color:#94a3b8;font-size:0.9rem;">Belum ada transaksi di database.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -1253,6 +1850,78 @@ function renderTransaksi() {
   root.querySelectorAll('[data-print-trx]').forEach((btn) => {
     btn.addEventListener('click', () => printReceipt(btn.dataset.printTrx));
   });
+
+}
+
+function renderPesananMasuk() {
+  const root = document.getElementById('view-pesanan');
+  const orders = incomingOrders();
+
+  root.innerHTML = `
+    <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      ${metricCard('Pesanan Aktif', orders.length, 'text-sky-700')}
+      ${metricCard('Menunggu', orders.filter((trx) => trx.status === 'pending').length, 'text-amber-700')}
+      ${metricCard('Diproses', orders.filter((trx) => trx.status === 'processing').length, 'text-sky-700')}
+    </div>
+
+    <div class="card p-5">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <h3 class="font-bold text-lg text-primary-700">Pesanan Masuk dari Landing Page</h3>
+          <p class="text-sm text-slate-500">Order pelanggan dari website, termasuk pickup, dine-in, nomor meja, dan nomor telepon.</p>
+        </div>
+        <button class="btn btn-soft" id="refreshOrdersBtn">Refresh</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Kode</th>
+              <th>Waktu</th>
+              <th>Pemesan</th>
+              <th>Pesanan</th>
+              <th>Info</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${orders.length ? orders.map((trx) => `
+              <tr>
+                <td>${trx.code}</td>
+                <td>${formatDateTime(trx.createdAt)}</td>
+                <td>${trx.customerName || '-'}</td>
+                <td style="white-space:normal;min-width:240px;">${orderItemsSummary(trx)}</td>
+                <td style="white-space:normal;min-width:230px;">${trx.notes || '-'}</td>
+                <td>${formatter.format(trx.total)}</td>
+                <td>${transactionStatusSelect(trx)}</td>
+                <td class="space-x-1">
+                  <button class="btn btn-soft" data-detail-trx="${trx.id}">Detail</button>
+                  <button class="btn btn-primary" data-print-trx="${trx.id}">Cetak</button>
+                </td>
+              </tr>
+            `).join('') : '<tr><td colspan="8" style="text-align:center;padding:2.5rem 0;color:#94a3b8;font-size:0.9rem;">Belum ada pesanan dari landing page.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  root.querySelector('#refreshOrdersBtn').addEventListener('click', refreshDataAndView);
+
+  root.querySelectorAll('[data-detail-trx]').forEach((btn) => {
+    btn.addEventListener('click', () => openTrxDetail(btn.dataset.detailTrx));
+  });
+
+  root.querySelectorAll('[data-print-trx]').forEach((btn) => {
+    btn.addEventListener('click', () => printReceipt(btn.dataset.printTrx));
+  });
+
+  root.querySelectorAll('[data-status-trx]').forEach((select) => {
+    select.addEventListener('change', () => updateTransactionStatus(select.dataset.statusTrx, select.value));
+  });
 }
 
 function openTrxDetail(trxId) {
@@ -1260,6 +1929,8 @@ function openTrxDetail(trxId) {
   if (!trx) return;
 
   const dialog = document.getElementById('trxDetailDialog');
+  const paid = transactionIsPaid(trx);
+  const canPay = isLandingOrder(trx) && !paid && trx.status !== 'cancelled';
   dialog.innerHTML = `
     <div class="p-5 space-y-3">
       <div class="flex justify-between items-center">
@@ -1297,14 +1968,320 @@ function openTrxDetail(trxId) {
 
       <div class="pt-3 border-t border-amber-100 text-sm space-y-1">
         <p class="flex justify-between"><span>Total</span><span>${formatter.format(trx.total)}</span></p>
-        <p class="flex justify-between"><span>Bayar</span><span>${formatter.format(trx.payment)}</span></p>
-        <p class="flex justify-between font-bold text-emerald-700"><span>Kembalian</span><span>${formatter.format(trx.change)}</span></p>
+        ${paid ? `
+          <p class="flex justify-between"><span>Bayar</span><span>${formatter.format(trx.payment)}</span></p>
+          <p class="flex justify-between font-bold text-emerald-700"><span>Kembalian</span><span>${formatter.format(trx.change)}</span></p>
+        ` : `
+          <div class="rounded-xl bg-amber-50 border border-amber-100 p-3 text-amber-800 font-semibold">
+            Pesanan ini belum dibayar.
+          </div>
+          ${canPay ? `
+            <button class="btn btn-primary w-full" id="openPaymentBtn">Pembayaran Cash</button>
+            <form id="detailPaymentForm" class="hidden space-y-2 pt-2">
+              <label class="text-sm text-slate-600">Uang Bayar (Rp)</label>
+              <input id="detailPaymentInput" class="input" type="number" min="${trx.total}" placeholder="Masukkan uang bayar" />
+              <div id="detailChangePreview" class="hidden rounded-xl px-3 py-2 text-sm font-semibold"></div>
+              <div class="flex justify-end gap-2">
+                <button class="btn btn-soft" type="button" id="cancelPaymentBtn">Batal</button>
+                <button class="btn btn-primary" type="submit">Simpan Pembayaran</button>
+              </div>
+            </form>
+          ` : ''}
+        `}
       </div>
     </div>
   `;
 
   dialog.showModal();
   dialog.querySelector('#closeTrxDetail').addEventListener('click', () => dialog.close());
+
+  const openPaymentBtn = dialog.querySelector('#openPaymentBtn');
+  const paymentForm = dialog.querySelector('#detailPaymentForm');
+  const paymentInput = dialog.querySelector('#detailPaymentInput');
+  const changePreview = dialog.querySelector('#detailChangePreview');
+
+  if (openPaymentBtn && paymentForm && paymentInput && changePreview) {
+    openPaymentBtn.addEventListener('click', () => {
+      openPaymentBtn.classList.add('hidden');
+      paymentForm.classList.remove('hidden');
+      paymentInput.focus();
+    });
+
+    dialog.querySelector('#cancelPaymentBtn').addEventListener('click', () => {
+      paymentForm.classList.add('hidden');
+      openPaymentBtn.classList.remove('hidden');
+    });
+
+    paymentInput.addEventListener('input', () => {
+      const payment = Number(paymentInput.value || 0);
+      if (!payment) {
+        changePreview.classList.add('hidden');
+        return;
+      }
+
+      const change = payment - Number(trx.total || 0);
+      changePreview.classList.remove('hidden');
+      if (change < 0) {
+        changePreview.className = 'rounded-xl px-3 py-2 text-sm font-semibold bg-red-50 border border-red-200 text-red-700';
+        changePreview.textContent = `Uang kurang ${formatter.format(Math.abs(change))}`;
+      } else {
+        changePreview.className = 'rounded-xl px-3 py-2 text-sm font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700';
+        changePreview.textContent = `Kembalian ${formatter.format(change)}`;
+      }
+    });
+
+    paymentForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      await payLandingOrder(trx.id, Number(paymentInput.value || 0));
+    });
+  }
+}
+
+function renderRegister() {
+  const root = document.getElementById('view-register');
+
+  if (!isSuperAdmin()) {
+    root.innerHTML = `
+      <div class="card p-8 text-center">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#7c4521" stroke-width="1.5" class="mx-auto mb-4">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <h3 class="font-bold text-lg text-primary-700 mb-2">Akses Terbatas</h3>
+        <p class="text-slate-500">Hanya Super Admin yang dapat mengelola akun.</p>
+      </div>
+    `;
+    return;
+  }
+
+  root.innerHTML = `
+    <div class="card p-5">
+      <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
+        <div>
+          <h3 class="font-bold text-lg text-primary-700">Kelola Akun Admin</h3>
+          <p class="text-sm text-slate-500">Tambah atau hapus akses admin</p>
+        </div>
+        <button id="addAdminBtn" class="btn btn-primary">+ Tambah Admin</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Nama</th>
+              <th>Role</th>
+              <th>Email</th>
+              <th>Dibuat</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="adminList">
+            <tr><td colspan="5" class="text-center text-slate-500 py-8">Memuat...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  loadAdminList();
+
+  root.querySelector('#addAdminBtn').addEventListener('click', openRegisterDialog);
+}
+
+async function loadAdminList() {
+  try {
+    const { data, error } = await db
+      .from('admin_users')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const tbody = document.getElementById('adminList');
+    if (!data || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-slate-500 py-8">Belum ada admin terdaftar</td></tr>';
+      return;
+    }
+
+    const roleLabels = {
+      'super_admin': 'Super Admin',
+      'kasir': 'Kasir',
+      'koki': 'Koki'
+    };
+
+    const roleBadges = {
+      'super_admin': 'bg-amber-100 text-amber-800',
+      'kasir': 'bg-sky-100 text-sky-700',
+      'koki': 'bg-emerald-100 text-emerald-700'
+    };
+
+    tbody.innerHTML = data.map(admin => `
+      <tr>
+        <td>
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold">
+              ${admin.name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p class="font-semibold text-sm">${admin.name}</p>
+              ${state.currentUser?.userId === String(admin.id) ? '<span class="text-xs text-primary-600">Anda</span>' : ''}
+            </div>
+          </div>
+        </td>
+        <td>
+          <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${roleBadges[admin.role] || 'bg-slate-100 text-slate-700'}">
+            ${roleLabels[admin.role] || admin.role}
+          </span>
+        </td>
+        <td>${admin.email}</td>
+        <td>${formatDateTime(admin.created_at)}</td>
+        <td>
+          ${state.currentUser?.userId !== String(admin.id) ? `
+            <button class="btn btn-danger text-sm" onclick="deleteAdmin('${admin.id}', '${admin.name}')">Hapus</button>
+          ` : '<span class="text-xs text-slate-400">Akun aktif</span>'}
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    notify.error('Gagal memuat daftar admin');
+  }
+}
+
+function openRegisterDialog() {
+  const dialog = document.getElementById('registerDialog');
+
+  dialog.innerHTML = `
+    <form id="registerFormDialog" class="p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-lg text-primary-700">Tambah Admin Baru</h3>
+        <button type="button" id="closeRegisterDialog" class="text-slate-500">Tutup</button>
+      </div>
+
+      <div>
+        <label class="text-sm text-slate-600">Nama Lengkap <span class="text-red-500">*</span></label>
+        <input name="name" class="input" placeholder="Nama admin" required />
+      </div>
+
+      <div>
+        <label class="text-sm text-slate-600">Email <span class="text-red-500">*</span></label>
+        <input name="email" type="email" class="input" placeholder="admin@contoh.com" required />
+      </div>
+
+      <div>
+        <label class="text-sm text-slate-600">Password <span class="text-red-500">*</span></label>
+        <div class="password-field">
+          <input name="password" type="password" class="input" placeholder="Minimal 6 karakter" required data-password-input />
+          <button type="button" class="password-toggle" data-password-toggle aria-label="Tampilkan password" aria-pressed="false">
+            <svg class="icon-eye" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+            </svg>
+            <svg class="icon-eye-off" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M3 3l18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M10.6 5.2A11 11 0 0 1 12 5c6.5 0 10 7 10 7a18.7 18.7 0 0 1-2.4 3.2M6.4 6.4C3.7 8.2 2 12 2 12s3.5 7 10 7c1.5 0 2.8-.3 4-.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M9.9 9.9A3 3 0 0 0 14.1 14.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <p class="text-xs text-slate-400 mt-1">Password minimal 6 karakter</p>
+      </div>
+
+      <div>
+        <label class="text-sm text-slate-600">Role <span class="text-red-500">*</span></label>
+        <select name="role" class="select" required>
+          <option value="kasir">Kasir</option>
+          <option value="koki">Koki</option>
+          <option value="super_admin">Super Admin</option>
+        </select>
+        <p class="text-xs text-slate-400 mt-1">
+          <strong>Kasir</strong>: Kasir, Pesanan Masuk, Transaksi |
+          <strong>Koki</strong>: Pesanan Masuk |
+          <strong>Super Admin</strong>: Semua menu
+        </p>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" id="cancelRegisterDialog" class="btn btn-soft">Batal</button>
+        <button type="submit" class="btn btn-primary">Buat Akun</button>
+      </div>
+    </form>
+  `;
+
+  dialog.showModal();
+
+  const close = () => dialog.close();
+  dialog.querySelector('#closeRegisterDialog').addEventListener('click', close);
+  dialog.querySelector('#cancelRegisterDialog').addEventListener('click', close);
+
+  dialog.querySelector('#registerFormDialog').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const name = String(fd.get('name') || '').trim();
+    const email = String(fd.get('email') || '').trim().toLowerCase();
+    const password = String(fd.get('password') || '');
+    const role = String(fd.get('role') || 'kasir');
+
+    if (!name || !email || !password || !role) {
+      notify.error('Semua field harus diisi');
+      return;
+    }
+
+    if (password.length < 6) {
+      notify.error('Password minimal 6 karakter');
+      return;
+    }
+
+    try {
+      const { data: existing } = await db
+        .from('admin_users')
+        .select('id')
+        .eq('email', email)
+        .single();
+
+      if (existing) {
+        notify.error('Email sudah terdaftar');
+        return;
+      }
+
+      const { error } = await db
+        .from('admin_users')
+        .insert({
+          name,
+          email,
+          password,
+          role,
+          created_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      const roleLabel = role === 'super_admin' ? 'Super Admin' : (role === 'koki' ? 'Koki' : 'Kasir');
+      notify.success(`Admin ${roleLabel} berhasil ditambahkan`);
+      close();
+      loadAdminList();
+    } catch (err) {
+      notify.error('Gagal menambahkan admin');
+    }
+  });
+}
+
+async function deleteAdmin(adminId, adminName) {
+  const confirmed = await notify.confirm(`Hapus admin "${adminName}"?`);
+  if (!confirmed) return;
+
+  try {
+    const { error } = await db
+      .from('admin_users')
+      .delete()
+      .eq('id', adminId);
+
+    if (error) throw error;
+
+    notify.success('Admin berhasil dihapus');
+    loadAdminList();
+  } catch (err) {
+    notify.error('Gagal menghapus admin');
+  }
 }
 
 function reportRangeData(startDate, endDate) {
@@ -1476,7 +2453,7 @@ function renderLaporan() {
     const endVal = root.querySelector('#reportEnd').value;
     const label = startVal && endVal ? `${startVal} s/d ${endVal}` : 'Semua Periode';
     const html = `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"/><title>Laporan Penjualan</title>
-<style>body{font-family:Arial,sans-serif;padding:24px;color:#0f172a;font-size:13px}h1{font-size:18px;margin-bottom:4px}p.sub{color:#64748b;margin-bottom:16px}.stats{display:flex;gap:16px;margin-bottom:20px}.stat{flex:1;border:1px solid #e6cbb2;border-radius:8px;padding:10px 14px}.stat-label{font-size:11px;color:#64748b}.stat-value{font-size:20px;font-weight:900;color:#7c4521}table{width:100%;border-collapse:collapse;margin-bottom:20px}th{background:#f8f1e8;color:#7c4521;font-size:11px;text-transform:uppercase;padding:8px;text-align:left}td{padding:7px 8px;border-bottom:1px solid #e2e8f0;font-size:12px}h2{font-size:14px;margin:16px 0 8px;border-bottom:2px solid #e6cbb2;padding-bottom:4px;color:#7c4521}</style>
+<link rel="stylesheet" href="${assetUrl('css/dashboard/print-report.css')}" />
 </head><body>
 <h1>Laporan Penjualan</h1><p class="sub">Periode: ${label}</p>
 <div class="stats">
@@ -1486,10 +2463,10 @@ function renderLaporan() {
 </div>
 <h2>Top Produk</h2>
 <table><thead><tr><th>#</th><th>Nama Produk</th><th>Terjual</th></tr></thead><tbody>
-${currentData.top.length ? currentData.top.map((row,i)=>`<tr><td>${i+1}</td><td>${row[0]}</td><td>${row[1]} pcs</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:center;color:#94a3b8">Belum ada data</td></tr>'}</tbody></table>
+${currentData.top.length ? currentData.top.map((row,i)=>`<tr><td>${i+1}</td><td>${row[0]}</td><td>${row[1]} pcs</td></tr>`).join('') : '<tr><td colspan="3" class="no-data">Belum ada data</td></tr>'}</tbody></table>
 <h2>Daftar Transaksi</h2>
 <table><thead><tr><th>Kode</th><th>Tanggal</th><th>Total</th></tr></thead><tbody>
-${currentData.list.length ? currentData.list.map((trx)=>`<tr><td>${trx.code}</td><td>${formatDateTime(trx.createdAt)}</td><td>${formatter.format(trx.total)}</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:center;color:#94a3b8">Tidak ada transaksi</td></tr>'}</tbody></table>
+${currentData.list.length ? currentData.list.map((trx)=>`<tr><td>${trx.code}</td><td>${formatDateTime(trx.createdAt)}</td><td>${formatter.format(trx.total)}</td></tr>`).join('') : '<tr><td colspan="3" class="no-data">Tidak ada transaksi</td></tr>'}</tbody></table>
 </body></html>`;
     const win = window.open('', '_blank');
     win.document.write(html);
@@ -1508,18 +2485,12 @@ function printReceipt(trxId) {
     <head>
       <meta charset="UTF-8" />
       <title>Struk ${trx.code}</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 16px; }
-        .title { text-align: center; margin-bottom: 10px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { font-size: 12px; border-bottom: 1px dashed #999; padding: 6px 2px; }
-        .right { text-align: right; }
-      </style>
+      <link rel="stylesheet" href="${assetUrl('css/dashboard/print-receipt.css')}" />
     </head>
     <body>
       <div class="title">
-        <h2 style="margin:0;">Kopi Searah</h2>
-        <p style="margin:4px 0;">${trx.code} - ${formatDateTime(trx.createdAt)}</p>
+        <h2>Kopi Searah</h2>
+        <p>${trx.code} - ${formatDateTime(trx.createdAt)}</p>
       </div>
 
       <table>
@@ -1543,10 +2514,10 @@ function printReceipt(trxId) {
         </tbody>
       </table>
 
-      <p style="margin-top:10px;" class="right"><strong>Total: ${formatter.format(trx.total)}</strong></p>
+      <p class="right total-row"><strong>Total: ${formatter.format(trx.total)}</strong></p>
       <p class="right">Bayar: ${formatter.format(trx.payment)}</p>
       <p class="right">Kembalian: ${formatter.format(trx.change)}</p>
-      <p style="text-align:center; margin-top:14px;">Terima kasih telah berbelanja</p>
+      <p class="thanks">Terima kasih telah berbelanja</p>
 
       <script>window.print();</script>
     </body>
@@ -1566,8 +2537,11 @@ function renderCurrentView() {
   if (state.currentView === 'kasir') renderKasir();
   if (state.currentView === 'produk') renderProduk();
   if (state.currentView === 'kategori') renderKategori();
+  if (state.currentView === 'meja') renderMeja();
+  if (state.currentView === 'pesanan') renderPesananMasuk();
   if (state.currentView === 'transaksi') renderTransaksi();
   if (state.currentView === 'laporan') renderLaporan();
+  if (state.currentView === 'register') renderRegister();
 }
 
 async function refreshDataAndView() {
@@ -1594,14 +2568,36 @@ function attachGlobalEvents() {
   });
 }
 
-async function init() {
+async function startAdminApp() {
   renderNav();
   renderCurrentView();
-  attachGlobalEvents();
-
-  if (!ensureDb()) return;
+  if (!globalEventsAttached) {
+    attachGlobalEvents();
+    globalEventsAttached = true;
+  }
+  showDashboard();
 
   await refreshDataAndView();
+
+  if (!autoRefreshTimer) {
+    autoRefreshTimer = setInterval(async () => {
+      if (!['dashboard', 'meja', 'pesanan', 'transaksi'].includes(state.currentView)) return;
+      await refreshDataAndView();
+    }, 15000);
+  }
+}
+
+async function init() {
+  if (!ensureDb()) return;
+
+  const session = await checkSession();
+  if (!session) {
+    showLoginPage();
+    return;
+  }
+
+  state.currentUser = session;
+  await startAdminApp();
 }
 
 init();

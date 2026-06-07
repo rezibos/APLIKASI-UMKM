@@ -24,8 +24,8 @@ Mode saat ini:
 ## Setup Database
 
 1. Buat project Supabase
-2. Buka SQL Editor, jalankan file `database.sql`
-3. Buka file `config.js`, isi:
+2. Buka SQL Editor, jalankan file `databases/database.sql`
+3. Buka file `js/config.js`, isi:
 	- `supabaseUrl`
 	- `supabaseAnonKey`
 4. Simpan logo di:
