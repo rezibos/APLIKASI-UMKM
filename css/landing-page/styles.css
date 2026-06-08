@@ -729,7 +729,7 @@
       padding: 60px 5% 34px;
     }
     .footer-grid {
-      display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 48px; margin-bottom: 48px;
+      display: grid; grid-template-columns: 1.5fr .9fr 1.15fr 1.1fr; gap: 42px; margin-bottom: 48px;
     }
     .footer-brand { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
     .footer-brand img {
@@ -742,8 +742,16 @@
     .footer-links { list-style:none; display:flex; flex-direction:column; gap:9px; }
     .footer-links a { text-decoration:none; color:rgba(255,255,255,.6); font-size:.87rem; transition:color .2s; }
     .footer-links a:hover { color: var(--gold); }
-    .footer-contact-item { display:flex; gap:10px; align-items:flex-start; font-size:.87rem; margin-bottom:11px; }
-    .footer-contact-item svg { flex-shrink:0; margin-top:2px; }
+    .footer-contact-item,
+    .footer-social-item {
+      display:flex; gap:10px; align-items:flex-start; font-size:.87rem; margin-bottom:11px;
+      color:rgba(255,255,255,.68); text-decoration:none; transition:color .2s;
+    }
+    .footer-contact-item:hover,
+    .footer-social-item:hover { color: var(--gold); }
+    .footer-contact-item svg,
+    .footer-social-item svg { flex-shrink:0; margin-top:2px; }
+    .footer-social-list { display:flex; flex-direction:column; gap:1px; }
     .footer-divider { border:none; border-top:1px solid rgba(255,255,255,.1); margin-bottom:22px; }
     .footer-bottom { display:flex; align-items:center; justify-content:space-between; font-size:.78rem; flex-wrap:wrap; gap:8px; }
 
